@@ -125,7 +125,8 @@ main.wrap { padding-top: var(--space-4); padding-bottom: var(--space-5); }
 .block.paper, .sheet { background: var(--paper); color: var(--ink); color-scheme: light; }
 .block.night { background: var(--night-2); }
 .block .label, .label { font-size: var(--s-1); font-weight: 700; }
-.block.wheat .muted, .block.field .muted, .block.sky .muted, .block.paper .muted, :is(.sheet, .paper, .contract) .muted { color: var(--ink-2); }
+.block.wheat .muted, .block.field .muted, .block.sky .muted { color: var(--ink); opacity: 0.85; }
+.block.paper .muted, :is(.sheet, .paper, .contract) .muted { color: var(--ink-2); }
 
 .eyebrow { font-size: var(--s-1); color: var(--text-3); font-weight: 700; }
 :is(.sheet, .paper, .contract) .eyebrow, .block .eyebrow { color: var(--ink-2); }
@@ -280,21 +281,19 @@ td { padding: 12px; vertical-align: middle; }
 td.r, th.r { text-align: right; }
 .table-scroll { overflow-x: auto; }
 
-/* Standings: each row is its own bar, filled in proportion to points */
-.standings tbody tr {
-  --pct: 0%;
-  background: linear-gradient(90deg, var(--night-3) var(--pct), var(--night) var(--pct));
-  transition: background 0.8s ease;
-}
-.standings tbody tr td:first-child { border-radius: var(--r) 0 0 var(--r); }
-.standings tbody tr td:last-child { border-radius: 0 var(--r) var(--r) 0; }
-.standings tbody tr.first { background: linear-gradient(90deg, var(--wheat) var(--pct), #3a3a1c var(--pct)); color: var(--ink); }
-.standings tbody tr.first .muted, .standings tbody tr.first .tiny { color: var(--ink-2); }
-.standings .rank { font-size: var(--s4); width: 1.3em; }
-.standings .score { font-size: var(--s4); }
-.standings tr.me td:first-child { box-shadow: inset 6px 0 0 var(--text); }
-.standings tr.first.me td:first-child { box-shadow: inset 6px 0 0 var(--ink); }
-.bar { display: none; }
+/* Standings: a scoreboard, each row over a thick bar of its points */
+.standings { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.srow { display: grid; grid-template-columns: 1.6em 1fr auto; gap: 4px var(--space-2); align-items: center; padding: 12px 14px; border-radius: var(--r); background: var(--night); }
+.srow .rank { font-size: var(--s4); color: var(--text-3); }
+.srow .score { font-size: var(--s4); }
+.srow .who b { font-size: var(--s1); }
+.srow .sbar { grid-column: 1 / -1; height: 10px; border-radius: 999px; background: var(--night-3); overflow: hidden; }
+.srow .sbar i { display: block; height: 100%; border-radius: 999px; background: var(--field); transition: width 1s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.srow.first { box-shadow: inset 0 0 0 2px var(--wheat); }
+.srow.first .rank, .srow.first .score { color: var(--wheat); }
+.srow.first .sbar i { background: var(--wheat); }
+.srow.me { background: var(--night-3); }
+.srow.me .sbar { background: var(--night); }
 
 /* Rings, one per player */
 .ring { position: relative; width: 200px; height: 200px; flex: none; }

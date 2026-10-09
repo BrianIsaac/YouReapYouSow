@@ -80,33 +80,26 @@ export function standingsTable(state, meId, rows) {
   if (!list.length) return h("p", { class: "muted" }, "No one has a seat yet.");
   const max = (state.rubric && state.rubric.total_points) || 100;
   return h(
-    "div",
-    { class: "table-scroll" },
-    h(
-      "table",
-      { class: "standings" },
-      h("thead", null, h("tr", null, h("th", null, "Rank"), h("th", null, "Player"), h("th", { class: "r" }, "Points"))),
-      h(
-        "tbody",
-        null,
-        list.map((row) => {
-          const pct = Math.min(100, (100 * (row.score || 0)) / max);
-          const first = row.rank === 1 && (row.score || 0) > 0;
-          return h(
-            "tr",
-            { class: [row.player_id === meId ? "me" : "", first ? "first" : ""].join(" ").trim() || null, style: { "--pct": `${pct}%` } },
-            h("td", { class: "rank" }, row.rank ?? "-"),
-            h(
-              "td",
-              null,
-              h("div", null, h("b", null, row.name), row.player_id === meId ? h("span", { class: "small" }, "  you") : null),
-              h("div", { class: "tiny muted" }, `${plural(row.verified_milestones || 0, "milestone")} verified`),
-            ),
-            h("td", { class: "r score num" }, row.score ?? 0),
-          );
-        }),
-      ),
-    ),
+    "ol",
+    { class: "standings", "aria-label": "Standings" },
+    list.map((row) => {
+      const pct = Math.min(100, (100 * (row.score || 0)) / max);
+      const first = row.rank === 1 && (row.score || 0) > 0;
+      return h(
+        "li",
+        { class: ["srow", row.player_id === meId ? "me" : "", first ? "first" : ""].join(" ").trim() },
+        h("span", { class: "rank" }, row.rank ?? "-"),
+        h(
+          "span",
+          { class: "who" },
+          h("b", null, row.name),
+          row.player_id === meId ? h("span", { class: "small muted" }, "  you") : null,
+          h("span", { class: "tiny muted", style: { display: "block" } }, `${plural(row.verified_milestones || 0, "milestone")} verified`),
+        ),
+        h("span", { class: "score num" }, row.score ?? 0),
+        h("span", { class: "sbar", "aria-hidden": "true" }, h("i", { style: { width: `${pct}%` } })),
+      );
+    }),
   );
 }
 
