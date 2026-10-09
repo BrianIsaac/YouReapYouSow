@@ -1,0 +1,22 @@
+# local only
+docs/
+
+# environments and secrets
+.env
+.env.*
+!.env.example
+.venv/
+
+# python caches and coverage
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# runtime state and build output
+var/
+dist/
+build/
+*.log
+node_modules/
