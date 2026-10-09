@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YouReapYouSow</title>
+  <meta name="description" content="Commit to a goal with your group, prove your progress, and the winner's prize is bought by the agent.">
+  <meta name="theme-color" content="#0d231a">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%2313261d'/%3E%3Cpath d='M16 24V12M16 16c-3 0-5-2-5-5 3 0 5 2 5 5zm0 0c3 0 5-2 5-5-3 0-5 2-5 5z' stroke='%23d9a03a' stroke-width='2' fill='none'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <a class="brand" href="#/drop">YouReap<span>YouSow</span></a>
+      <span id="group-status"></span>
+      <span class="spacer"></span>
+      <label class="whoami">
+        <span>Playing as</span>
+        <select id="player-select" aria-label="Playing as"></select>
+      </label>
+    </div>
+  </header>
+  <nav class="wrap" aria-label="Journey">
+    <ul class="steps" id="steps"></ul>
+  </nav>
+  <main class="wrap" id="main" tabindex="-1">
+    <div class="empty-state">Loading the room</div>
+  </main>
+  <footer class="footer">
+    <div class="wrap row between">
+      <span id="footer-note">Demo build. Test USDC only, no cash value. No sign-in tonight: a seat is held by this browser.</span>
+      <button class="btn ghost small" id="reset-btn" type="button">Reset the demo group</button>
+    </div>
+  </footer>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
