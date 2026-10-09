@@ -107,7 +107,7 @@ def talk_to_coach(page: Page, first: str) -> None:
     raise AssertionError("the coach did not propose a contract")
 
 
-def run(base: str, out: Path, stop_after: str, drop: str) -> list[str]:  # noqa: PLR0912, PLR0915 - one linear script
+def run(base: str, out: Path, stop_after: str, drop: str, lead_s: float | None) -> list[str]:  # noqa: PLR0912, PLR0915 - one linear script
     """Plays the journey up to and including a stage.
 
     Args:
@@ -115,6 +115,8 @@ def run(base: str, out: Path, stop_after: str, drop: str) -> list[str]:  # noqa:
         out: The screenshot directory.
         stop_after: The last stage to play.
         drop: The drop to play (``main`` for a server with a single drop).
+        lead_s: When given, republish the drop to start this many seconds from now
+            instead of pressing the reset button.
 
     Returns:
         Every console and page error seen.
@@ -132,9 +134,14 @@ def run(base: str, out: Path, stop_after: str, drop: str) -> list[str]:  # noqa:
         alice.wait_for_selector("main .stack, main .stack-lg", timeout=8000)
         room.shot(alice, "00-drops-laptop")
         alice.goto(f"{base}/#/d/{drop}/drop")
-        alice.get_by_role("button", name="Reset this drop").wait_for()
-        alice.once("dialog", lambda d: d.accept())
-        alice.get_by_role("button", name="Reset this drop").click()
+        if lead_s is not None:
+            res = alice.request.post(f"{base}/api/drops/{drop}/reset", data={"lead_s": lead_s})
+            assert res.ok, res.text()
+            alice.reload()
+        else:
+            alice.get_by_role("button", name="Reset this drop").wait_for()
+            alice.once("dialog", lambda d: d.accept())
+            alice.get_by_role("button", name="Reset this drop").click()
         expect(alice.get_by_text("Open for joining").first).to_be_visible()
         room.shot(alice, "01-drop-laptop")
 
@@ -182,7 +189,9 @@ def run(base: str, out: Path, stop_after: str, drop: str) -> list[str]:  # noqa:
             browser.close()
             return room.errors
         for page in room.pages:
-            expect(page.get_by_role("heading", name="Check in")).to_be_visible(timeout=8000)
+            expect(page.get_by_role("heading", name="Check in")).to_be_visible(
+                timeout=int(((lead_s or 0) + 30) * 1000)
+            )
         scored = ".checkins .pill.verified, .checkins .pill.rejected"
 
         alice.get_by_role("button", name="Start the camera").click()
@@ -245,8 +254,9 @@ def main() -> None:
     parser.add_argument("out", type=Path)
     parser.add_argument("--stop-after", choices=STAGES, default="result")
     parser.add_argument("--drop", default="main")
+    parser.add_argument("--lead-s", type=float, default=None)
     args = parser.parse_args()
-    errors = run(args.base.rstrip("/"), args.out, args.stop_after, args.drop)
+    errors = run(args.base.rstrip("/"), args.out, args.stop_after, args.drop, args.lead_s)
     for line in errors:
         print(line)
     print("room flow: " + ("errors" if errors else "clean"))
