@@ -23,6 +23,9 @@ function build(ctx) {
   const note = state.drop && state.drop.note;
 
   return [
+    cancelled
+      ? h("p", { class: "banner error", role: "status" }, h("b", null, "This drop was cancelled."), " Every entry is refunded; the refunds are on the ledger at the foot of the page.")
+      : null,
     h(
       "section",
       { class: "poster", "aria-label": "The drop" },
@@ -43,21 +46,21 @@ function build(ctx) {
         { class: "block wheat p-pool" },
         h("div", { class: "label" }, "The pool"),
         h("div", { class: "numeral" }, money(pool.gross, "")),
-        h("p", { class: "small" }, `test USDC from ${players.length} of ${g.max_players} entries of ${money(g.entry_amount, "")}. Full, it holds ${money(potential, "")}.`),
-        h("div", { style: { marginTop: "18px" } }, authorityBar(state)),
+        cancelled
+          ? h("p", { class: "small" }, `test USDC. Every entry of ${money(g.entry_amount, "")} went back to its player.`)
+          : h("p", { class: "small" }, `test USDC from ${players.length} of ${g.max_players} entries of ${money(g.entry_amount, "")}. Full, it holds ${money(potential, "")}.`),
+        cancelled ? null : h("div", { style: { marginTop: "18px" } }, authorityBar(state)),
       ),
       h(
         "div",
         { class: "block night p-seats stack" },
         h("div", { class: "label" }, `${players.length} of ${g.max_players} seats taken`),
         seatRings(state, ctx.meId),
-        me ? h("p", { class: "small muted" }, `You hold seat ${me.seat}.`) : h("p", { class: "small muted" }, g.starts_at ? `It starts at ${timeOfDay(g.starts_at)} if all ${g.max_players} seats are taken and everyone has accepted; otherwise every entry is refunded.` : `It starts when all ${g.max_players} seats are taken and everyone accepts.`),
+        cancelled ? null : me ? h("p", { class: "small muted" }, `You hold seat ${me.seat}.`) : h("p", { class: "small muted" }, g.starts_at ? `It starts at ${timeOfDay(g.starts_at)} if all ${g.max_players} seats are taken and everyone has accepted; otherwise every entry is refunded.` : `It starts when all ${g.max_players} seats are taken and everyone accepts.`),
       ),
       h("div", { class: "p-cta" }, callToAction(ctx, full, cancelled)),
     ),
-    cancelled
-      ? h("p", { class: "banner error", role: "status" }, h("b", null, "This group was cancelled."), " Every entry is refunded; the refunds are on the ledger below.")
-      : stateStrip(g.status),
+    cancelled ? null : stateStrip(g.status),
     h("section", { class: "plain stack" }, h("h2", null, "How the money works"), disclosure(state)),
     cancelled ? ledgerTail(state) : null,
   ];
@@ -66,7 +69,7 @@ function build(ctx) {
 function clockBlock(state, cancelled) {
   const g = state.group;
   if (cancelled) {
-    return h("div", { class: "block night p-clock" }, h("div", { class: "label" }, "Cancelled"), h("div", { class: "countdown" }, "Refunded"));
+    return h("div", { class: "block night p-clock" }, h("div", { class: "label" }, "Cancelled"), h("div", { class: "big" }, "Refunded"));
   }
   const open = g.status === "OPEN_FOR_JOINING";
   const live = g.status === "ACTIVE";
@@ -79,7 +82,7 @@ function clockBlock(state, cancelled) {
     h("div", { class: "label" }, label),
     (before && g.starts_at) || open || live
       ? countdown(live ? g.ends_at : startAt, { done: live ? "Closed" : "Starting" })
-      : h("div", { class: "countdown" }, `${g.duration_days} days`),
+      : h("div", { class: "big" }, `${g.duration_days} days`),
     state.clock ? h("span", { class: "pill accent" }, state.clock.label) : null,
   );
 }
@@ -87,7 +90,7 @@ function clockBlock(state, cancelled) {
 function callToAction(ctx, full, cancelled) {
   const { state, me, go } = ctx;
   const g = state.group;
-  if (cancelled) return h("p", { class: "muted" }, "Reset the demo group at the foot of the page to open a new drop.");
+  if (cancelled) return h("p", { class: "muted" }, "Reset this drop at the foot of the page to publish it again.");
   if (me) return h("button", { class: "btn primary block", type: "button", onclick: () => go(stageFor(g.status)) }, "Go to my seat");
   if (g.status === "OPEN_FOR_JOINING" && !full) {
     return h("button", { class: "btn primary block", type: "button", onclick: () => go("join") }, `Join for ${money(g.entry_amount)}`);

@@ -18,7 +18,7 @@ import sys
 import time
 from pathlib import Path
 
-from playwright.sync_api import Browser, ConsoleMessage, Page, expect, sync_playwright
+from playwright.sync_api import Browser, ConsoleMessage, Locator, Page, expect, sync_playwright
 from probe import probe_404
 
 PLAYERS = [
@@ -194,6 +194,9 @@ def run(base: str, out: Path, stop_after: str, drop: str, lead_s: float | None) 
             )
         scored = ".checkins .pill.verified, .checkins .pill.rejected"
 
+        def own(page: Page) -> Locator:
+            return page.locator("section", has=page.get_by_role("heading", name="Your check-ins"))
+
         alice.get_by_role("button", name="Start the camera").click()
         expect(alice.locator(".camera video")).to_be_visible()
         alice.wait_for_function(
@@ -203,7 +206,7 @@ def run(base: str, out: Path, stop_after: str, drop: str, lead_s: float | None) 
         alice.get_by_role("button", name="Take the photo").click()
         expect(alice.locator(".camera img")).to_be_visible()
         alice.get_by_role("button", name="Submit the check-in").click()
-        expect(alice.locator(scored).first).to_be_visible(timeout=90000)
+        expect(own(alice).locator(scored).first).to_be_visible(timeout=90000)
         room.shot(alice, "05-challenge-laptop")
 
         ben.locator("input[type=file]").set_input_files(
@@ -211,11 +214,11 @@ def run(base: str, out: Path, stop_after: str, drop: str, lead_s: float | None) 
         )
         ben.get_by_label("What you did").fill("0")
         ben.get_by_role("button", name="Submit the check-in").click()
-        expect(ben.locator(".checkins .pill.rejected").first).to_be_visible(timeout=90000)
+        expect(own(ben).locator(".checkins .pill.rejected").first).to_be_visible(timeout=90000)
         room.shot(ben, "05-challenge-rejected-phone")
 
         chloe.get_by_role("button", name="Submit the check-in").click()
-        expect(chloe.locator(scored).first).to_be_visible(timeout=90000)
+        expect(own(chloe).locator(scored).first).to_be_visible(timeout=90000)
         room.shot(chloe, "05-challenge-chloe-laptop")
         if last < STAGES.index("result"):
             browser.close()

@@ -1,6 +1,6 @@
 // Group agreement: every contract, the rubric and the terms; each player accepts or declines.
 
-import { h, fill, act, errorLine, money, pill, plural } from "../dom.js";
+import { h, fill, act, errorLine, money, pill, plural, timeOfDay, countdown } from "../dom.js";
 import { api } from "../api.js";
 import { contractCard, rubricCard, disclosure } from "../components.js";
 
@@ -36,7 +36,9 @@ function build(ctx, err, setBusy) {
           "p",
           { class: "lead" },
           open
-            ? "The challenge starts the moment the last player accepts. One decline cancels it and refunds everyone."
+            ? g.starts_at
+              ? `The challenge starts at ${timeOfDay(g.starts_at)} if everyone has accepted by then. One decline cancels it and refunds everyone.`
+              : "The challenge starts the moment the last player accepts. One decline cancels it and refunds everyone."
             : g.status === "INTAKE"
               ? "The agreement opens once every contract is locked."
               : "Every player accepted. The terms below are locked.",
@@ -47,6 +49,7 @@ function build(ctx, err, setBusy) {
         { class: `block ${all ? "field" : "night"} stack` },
         h("div", { class: "label" }, "Accepted"),
         h("div", { class: "tally" }, `${accepted} of ${players.length}`),
+        open && g.starts_at ? h("div", { class: "row small" }, h("span", null, "Starts in"), countdown(g.starts_at, { done: "Starting", cls: "countdown tile-count" })) : null,
         h(
           "div",
           { class: "row" },
@@ -91,7 +94,11 @@ function myDecision(ctx, err, setBusy) {
       "section",
       { class: "block field stack" },
       h("h2", null, "You accepted"),
-      h("p", { class: "lead", style: { color: "var(--ink)" } }, waiting.length ? `Waiting for ${waiting.join(" and ")}.` : "Everyone has accepted."),
+      h(
+        "p",
+        { class: "lead", style: { color: "var(--ink)" } },
+        waiting.length ? `Waiting for ${waiting.join(" and ")}.` : ctx.state.group.starts_at ? `Everyone has accepted. It starts at ${timeOfDay(ctx.state.group.starts_at)}.` : "Everyone has accepted.",
+      ),
     );
   }
   const accept = h("button", { class: "btn primary", type: "button" }, "I accept");

@@ -40,7 +40,14 @@ export function mount(ctx) {
   function paintLog(thinking) {
     fill(
       log,
-      history.map((m) => h("div", { class: `msg ${m.role}` }, m.text)),
+      history.map((m) =>
+        h(
+          "div",
+          { class: `msg ${m.role}` },
+          m.text,
+          m.model ? h("span", { class: "tiny", style: { display: "block", marginTop: "6px", opacity: "0.7" } }, m.model === "template" ? "No model answered; a template replied" : `Answered by ${m.model}`) : null,
+        ),
+      ),
       thinking ? h("div", { class: "msg coach thinking" }, "The coach is thinking") : null,
     );
     log.scrollTop = log.scrollHeight;
@@ -59,7 +66,7 @@ export function mount(ctx) {
     paintLog(true);
     const res = await act(send, chatErr, "Sending", () => api.intake(ctx.meId, text));
     if (res) {
-      if (res.reply) history.push({ role: "coach", text: res.reply });
+      if (res.reply) history.push({ role: "coach", text: res.reply, model: res.model || null });
       if (res.contract) localContract = res.contract;
       save();
       paintContract(ctx, true);
