@@ -195,7 +195,7 @@ function purchaseBlock(state, p) {
       p.final_amount ? h("div", { class: "line" }, h("span", { class: "muted" }, "Charged"), h("b", { class: "num" }, money(p.final_amount, "USD"))) : null,
       h("div", { class: "line" }, h("span", { class: "muted" }, "Through"), h("span", { style: { textAlign: "right" } }, BACKEND_LABEL[p.backend] || p.backend || "-")),
     ),
-    h("div", { class: "block wheat", style: { padding: "18px" } }, authorityBar(state, p.quote_final_amount)),
+    h("div", { class: "block soft", style: { padding: "18px" } }, authorityBar(state, p.quote_final_amount)),
     p.order_id
       ? h("div", { class: "order-block stack" }, h("div", { class: "label" }, "Reap order"), h("div", { class: "order-id" }, p.order_id), p.checkout_id ? h("div", { class: "tiny mono" }, `Checkout ${p.checkout_id}`) : null)
       : null,
@@ -226,7 +226,8 @@ function disputesBlock(ctx, ui, pending) {
             if (ctx.state.group.status === "DISPUTE_WINDOW" && e.state === "DISPUTED") {
               row.append(reviewButtons(ui, e));
             }
-            if (pending && me && ctx.state.group.status === "DISPUTE_WINDOW" && disputable) {
+            const windowLeft = msUntil(ctx.state.group.dispute_window_ends_at);
+            if (pending && me && ctx.state.group.status === "DISPUTE_WINDOW" && disputable && (windowLeft === null || windowLeft > 0)) {
               row.append(ui.editing === e.event_id ? disputeForm(ctx, ui, e) : h("div", { class: "why-line" }, h("button", { class: "btn ghost", type: "button", style: { minHeight: "40px", padding: "0 14px" }, onclick: () => ui.setEditing(e.event_id) }, "Dispute this score")));
             }
             return row;

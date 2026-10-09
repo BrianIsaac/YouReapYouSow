@@ -217,6 +217,10 @@ def run(base: str, out: Path, stop_after: str, drop: str, lead_s: float | None) 
         expect(own(ben).locator(".checkins .pill.rejected").first).to_be_visible(timeout=90000)
         room.shot(ben, "05-challenge-rejected-phone")
 
+        if not chloe.get_by_text("your own log entry").is_visible():
+            chloe.locator("input[type=file]").set_input_files(
+                {"name": "session.png", "mimeType": "image/png", "buffer": PNG + b"chloe"}
+            )
         chloe.get_by_role("button", name="Submit the check-in").click()
         expect(own(chloe).locator(scored).first).to_be_visible(timeout=90000)
         room.shot(chloe, "05-challenge-chloe-laptop")
@@ -235,7 +239,7 @@ def run(base: str, out: Path, stop_after: str, drop: str, lead_s: float | None) 
         expect(ben.locator(".pill.disputed").first).to_be_visible(timeout=8000)
         room.shot(ben, "06-dispute-window-phone")
         alice.get_by_role("button", name="Reinstate the points").first.click()
-        expect(alice.locator(".checkins .pill.disputed")).to_have_count(0, timeout=8000)
+        expect(alice.locator(".checkins .ci > .row .pill.disputed")).to_have_count(0, timeout=8000)
 
         finish = alice.get_by_role("button", name="Name the winner and buy the prize")
         expect(finish).to_be_enabled(timeout=120000)

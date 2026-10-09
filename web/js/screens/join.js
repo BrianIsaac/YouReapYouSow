@@ -35,7 +35,7 @@ function buildForm(ctx) {
 
   const form = h(
     "form",
-    { class: "block paper stack", novalidate: true },
+    { class: "block white stack", novalidate: true },
     h("h1", null, "Take a seat"),
     h("p", { class: "lead muted" }, "Your entry is held against the vault the moment you join, and the hold is written to the ledger."),
     h("label", { class: "field" }, h("span", null, "Your name, as the room will see it"), name),
@@ -76,7 +76,7 @@ function seated(ctx) {
   const waiting = g.max_players - (state.players || []).length;
   return h(
     "section",
-    { class: "block field stack" },
+    { class: "block bright stack" },
     h("div", { class: "row" }, pill(me.entry), h("span", { class: "label" }, `Seat ${me.seat}, ${money(g.entry_amount)}`)),
     h("h1", null, `You are in, ${me.name}`),
     g.status === "OPEN_FOR_JOINING"
@@ -94,13 +94,13 @@ function sidePanel(ctx) {
   return [
     h(
       "section",
-      { class: "block wheat stack" },
+      { class: "block strong stack" },
       h("div", { class: "label" }, me ? "The pool" : "The pool once you join"),
       h("div", { class: "numeral", style: { fontSize: "clamp(3.6rem, 10vw, 6rem)" } }, money(after, "")),
       h("p", { class: "small" }, me ? "test USDC held against the vault." : `test USDC: ${money(pool.gross, "")} now, plus your ${money(g.entry_amount, "")}.`),
       authorityBar(state),
     ),
-    h("section", { class: "block night stack" }, h("div", { class: "label" }, `${(state.players || []).length} of ${g.max_players} seats taken`), seatRings(state, ctx.meId)),
+    h("section", { class: "block white stack" }, h("div", { class: "label" }, `${(state.players || []).length} of ${g.max_players} seats taken`), seatRings(state, ctx.meId)),
     h("section", { class: "plain stack" }, h("h2", null, "Before you pay"), disclosure(state)),
   ];
 }

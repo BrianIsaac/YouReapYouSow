@@ -46,7 +46,7 @@ function build(ctx, err, setBusy) {
       ),
       h(
         "div",
-        { class: `block ${all ? "field" : "night"} stack` },
+        { class: `block ${all ? "bright" : "white"} stack` },
         h("div", { class: "label" }, "Accepted"),
         h("div", { class: "tally" }, `${accepted} of ${players.length}`),
         open && g.starts_at ? h("div", { class: "row small" }, h("span", null, "Starts in"), countdown(g.starts_at, { done: "Starting", cls: "countdown tile-count" })) : null,
@@ -92,7 +92,7 @@ function myDecision(ctx, err, setBusy) {
     const waiting = players.filter((p) => !p.accepted).map((p) => p.name);
     return h(
       "section",
-      { class: "block field stack" },
+      { class: "block bright stack" },
       h("h2", null, "You accepted"),
       h(
         "p",
@@ -117,7 +117,7 @@ function myDecision(ctx, err, setBusy) {
   });
   return h(
     "section",
-    { class: "block wheat stack" },
+    { class: "block strong stack" },
     h("h2", null, `${me.name}, do you accept?`),
     h("p", null, "You accept your own contract, every other player's contract, the rubric and the terms. A decline cancels the group and refunds every entry."),
     err,
