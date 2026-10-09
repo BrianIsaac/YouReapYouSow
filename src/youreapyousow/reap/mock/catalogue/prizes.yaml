@@ -2,6 +2,9 @@
 # Keychron B40 Wireless Keyboard, USD 49.99, one option Color: Deep Black). Mock data:
 # the shipping figure is the sandbox's quote that day (7.50 to Singapore, tax 0), so the
 # landed quote, 57.49, sits under a pool of three 25.00 entries less its 10% buffer (67.50).
+# The four Singapore merchants price in SGD on the sandbox; here they are listed at
+# illustrative USD prices near the merchant sheet's SGD figures converted, with a flat
+# 3.00 local delivery (10.00 for the monitor), so their drops can be bought on the mock.
 name: prizes
 description: The prize drop's keyboard, from one merchant, shipped to Singapore.
 currency: USD
@@ -37,3 +40,55 @@ merchants:
             name: Deep Black
             options: {Color: Deep Black}
             price: "54.99"
+  - name: UGREEN SG
+    domain: ugreen.example
+    external_checkout: false
+    ships_to: [SG]
+    shipping_options:
+      - {id: ugreen-local, name: Local delivery, price: "3", selected: true}
+    products:
+      - id: prd-ugreen-mouse
+        name: UGREEN Dual Mode Wireless Mouse 4000 DPI
+        description: Bluetooth and 2.4 GHz wireless mouse.
+        keywords: [ugreen, mouse, wireless, dual, mode]
+        variants:
+          - {id: var-ugreen-mouse-black, name: Black, options: {Color: Black}, price: "25.50"}
+  - name: Anker
+    domain: anker.example
+    external_checkout: false
+    ships_to: [SG]
+    shipping_options:
+      - {id: anker-local, name: Local delivery, price: "3", selected: true}
+    products:
+      - id: prd-anker-nano-hub
+        name: Anker Nano USB-C Hub 8-in-1 Dual Display 85W
+        description: An eight-port USB-C hub with two display outputs.
+        keywords: [anker, nano, hub, usb-c, 8-in-1]
+        variants:
+          - {id: var-anker-hub-silver, name: Silver, options: {Color: Silver}, price: "56.50"}
+  - name: PRISM+ Singapore
+    domain: prismplus.example
+    external_checkout: false
+    ships_to: [SG]
+    shipping_options:
+      - {id: prism-local, name: Local delivery, price: "10", selected: true}
+    products:
+      - id: prd-prism-w290u
+        name: PRISM+ W290U
+        description: A 29 inch ultrawide monitor.
+        keywords: [prism, w290u, monitor]
+        variants:
+          - {id: var-prism-w290u, name: 29 inch, options: {Size: 29 inch}, price: "154"}
+  - name: Boxgreen
+    domain: boxgreen.example
+    external_checkout: false
+    ships_to: [SG]
+    shipping_options:
+      - {id: boxgreen-local, name: Local delivery, price: "3", selected: true}
+    products:
+      - id: prd-boxgreen-trio
+        name: Boxgreen Trio Big Bag of Snacks
+        description: Three big bags of snacks.
+        keywords: [boxgreen, trio, snacks, bag]
+        variants:
+          - {id: var-boxgreen-trio, name: Big Bag, options: {Size: Big Bag}, price: "38.75"}

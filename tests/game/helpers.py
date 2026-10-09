@@ -54,7 +54,7 @@ def ready_group(game: Game) -> list[str]:
 
 
 def active_group(game: Game) -> list[str]:
-    """Ready the group and have everyone accept.
+    """Ready the group, have everyone accept, and move the clock to its fixed start.
 
     Args:
         game: The game.
@@ -65,4 +65,8 @@ def active_group(game: Game) -> list[str]:
     ids = ready_group(game)
     for pid in ids:
         game.service.accept(pid)
+    starts_at = game.service.group().starts_at
+    assert starts_at is not None
+    game.clock.advance(seconds=(starts_at - game.clock()).total_seconds())
+    game.service.tick()
     return ids

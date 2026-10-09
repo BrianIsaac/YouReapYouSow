@@ -54,6 +54,14 @@ def _clock(runtime: Runtime) -> ManualClock:
     return clock
 
 
+def _to_start(runtime: Runtime) -> None:
+    starts_at = runtime.game.group().starts_at
+    assert starts_at is not None
+    clock = _clock(runtime)
+    clock.advance(seconds=(starts_at - clock()).total_seconds())
+    runtime.game.tick()
+
+
 def play(runtime: Runtime) -> list[str]:
     """Run a challenge to its dispute window: Alice 35, Ben 15, Chloe 0.
 
@@ -70,6 +78,7 @@ def play(runtime: Runtime) -> list[str]:
         game.lock_contract(pid)
     for pid in ids:
         game.accept(pid)
+    _to_start(runtime)
     game.checkin(ids[0], milestone=0, value=Decimal(8), evidence=EvidenceIn(b"a", "image/jpeg"))
     game.checkin(ids[1], milestone=0, value=Decimal(1), evidence=None)
     _clock(runtime).advance(seconds=WEEK + 1)
@@ -199,6 +208,7 @@ async def test_no_verified_progress_means_no_winner_and_refunds(runtime: Runtime
         game.lock_contract(pid)
     for pid in ids:
         game.accept(pid)
+    _to_start(runtime)
     _clock(runtime).advance(seconds=4 * WEEK + 22)
     game.tick()
     _clock(runtime).advance(seconds=21)

@@ -11,6 +11,7 @@ balance, never a transfer, and a refund is a release of that reservation.
 
 import hashlib
 import mimetypes
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -214,6 +215,8 @@ class GameService:
         vault_source: str,
         evidence_dir: Path,
         rubric: Rubric = RUBRIC_V1,
+        drop_id: str = "drop",
+        reserved_elsewhere: Callable[[], Decimal] = lambda: Decimal(0),
     ) -> None:
         """Wire the service.
 
@@ -226,6 +229,8 @@ class GameService:
             vault_source: Where that balance was read from, for the ledger.
             evidence_dir: Where check-in evidence is stored.
             rubric: The rubric groups are scored under.
+            drop_id: The drop this service runs; its groups are listed under it.
+            reserved_elsewhere: What other drops have reserved against the same vault.
         """
         self.db = db
         self.ledger = ledger
@@ -235,6 +240,8 @@ class GameService:
         self.vault_source = vault_source
         self.evidence_dir = evidence_dir
         self.rubric = rubric
+        self.drop_id = drop_id
+        self.reserved_elsewhere = reserved_elsewhere
         self.prize_quote: Decimal | None = None
         self._groups = Records(db, "game_group", Group)
         self._players = Records(db, "game_player", Player)
@@ -243,7 +250,7 @@ class GameService:
     # Reading
 
     def _current(self) -> _Stored[Group]:
-        groups = self._groups.list()
+        groups = self._groups.list(objective_id=self.drop_id)
         if not groups:
             raise GameError("NO_GROUP", "No group is open.", 404)
         record, version = self._groups.require(groups[-1].id)
@@ -255,7 +262,26 @@ class GameService:
         Returns:
             True when one was.
         """
-        return bool(self._groups.list())
+        return bool(self._groups.list(objective_id=self.drop_id))
+
+    def group_ids(self) -> list[str]:
+        """Return every group this drop has run, oldest first.
+
+        Returns:
+            The group ids.
+        """
+        return [g.id for g in self._groups.list(objective_id=self.drop_id)]
+
+    def reserved(self) -> Decimal:
+        """Return what this drop's current group holds reserved against the vault.
+
+        Returns:
+            The entries reserved, in test USDC.
+        """
+        if not self.has_group():
+            return Decimal(0)
+        entries = sum(1 for p in self.players() if p.entry == EntryState.RESERVED)
+        return self.group().terms.entry_amount * entries
 
     def group(self) -> Group:
         """Return the current group.
@@ -341,23 +367,32 @@ class GameService:
         version = self._players.update(player, record_id=player.id, expected_version=stored.version)
         return _Stored(player, version)
 
-    def open_group(self) -> Group:
-        """Open a new group on the configured terms.
+    def open_group(self, lead_s: float | None = None) -> Group:
+        """Publish a new group on the configured terms, with its fixed date range.
+
+        Args:
+            lead_s: Real seconds from now to the fixed start; the terms' window when None.
 
         Returns:
             The group, open for joining.
         """
         now = self.clock()
+        terms = self.terms
+        if lead_s is not None:
+            terms = terms.model_copy(update={"enrolment_window_s": max(1.0, lead_s)})
+        starts_at = now + timedelta(seconds=terms.enrolment_window_s)
         group = Group(
             id=new_id("grp"),
-            terms=self.terms,
+            terms=terms,
             status=GroupStatus.OPEN_FOR_JOINING,
             opened_at=now,
-            enrolment_deadline=now + timedelta(seconds=self.terms.enrolment_window_s),
+            enrolment_deadline=starts_at,
+            starts_at=starts_at,
+            ends_at=starts_at + timedelta(seconds=terms.duration_days * terms.seconds_per_day),
             rubric_version=self.rubric.version,
         )
         with self.db.transaction():
-            self._groups.insert(group, record_id=group.id, objective_id=group.id)
+            self._groups.insert(group, record_id=group.id, objective_id=self.drop_id)
             self._event(
                 EventType.GROUP_OPENED,
                 group,
@@ -371,14 +406,20 @@ class GameService:
                     "duration_days": group.terms.duration_days,
                     "seconds_per_day": group.terms.seconds_per_day,
                     "enrolment_deadline": group.enrolment_deadline.isoformat(),
+                    "drop_id": self.drop_id,
+                    "starts_at": starts_at.isoformat(),
+                    "ends_at": group.ends_at.isoformat() if group.ends_at else None,
                     "rubric_version": group.rubric_version,
                     "buffer_rate": str(group.terms.buffer_rate),
                 },
             )
         return group
 
-    def reset(self) -> Group:
-        """Cancel the current group if unfinished, refunding its entries, and open a new one.
+    def reset(self, lead_s: float | None = None) -> Group:
+        """Cancel the current group if unfinished, refunding its entries, and republish.
+
+        Args:
+            lead_s: Real seconds from now to the new fixed start; the terms' window when None.
 
         Returns:
             The new group.
@@ -386,7 +427,7 @@ class GameService:
         current = self._current()
         if current.record.status not in (GroupStatus.FULFILLED, GroupStatus.CANCELLED):
             self._cancel(current, "reset by the operator")
-        return self.open_group()
+        return self.open_group(lead_s)
 
     def join(self, name: str) -> Player:
         """Reserve a seat and an entry against the vault.
@@ -413,7 +454,7 @@ class GameService:
                 raise GameError("GROUP_FULL", "Every seat in this group is taken.")
             self._require(GroupStatus.OPEN_FOR_JOINING)
         entry = group.terms.entry_amount
-        reserved_total = entry * (len(players) + 1)
+        reserved_total = entry * (len(players) + 1) + self.reserved_elsewhere()
         if reserved_total > self.vault_balance:
             raise GameError(
                 "VAULT_INSUFFICIENT",
@@ -699,20 +740,23 @@ class GameService:
                 stored, player.model_copy(update={"accepted_at": now, "contract": accepted})
             )
             self._contract_event(EventType.CONTRACT_ACCEPTED, group, accepted)
-            players = self.players()
-            startable = (
-                len(players) >= group.terms.min_players
-                and all(p.entry == EntryState.RESERVED for p in players)
-                and all(p.intake == IntakeState.LOCKED for p in players)
-                and all(p.accepted_at is not None for p in players)
-            )
-            if startable:
-                self._start(stored_group, now, len(players))
         return self.group()
+
+    def _startable(self, group: Group) -> bool:
+        players = self.players()
+        return (
+            group.status == GroupStatus.READY_FOR_ACCEPTANCE
+            and len(players) >= group.terms.min_players
+            and all(p.entry == EntryState.RESERVED for p in players)
+            and all(p.intake == IntakeState.LOCKED for p in players)
+            and all(p.accepted_at is not None for p in players)
+        )
 
     def _start(self, stored: _Stored[Group], now: datetime, players: int) -> None:
         group = stored.record
-        ends_at = now + timedelta(seconds=group.terms.duration_days * group.terms.seconds_per_day)
+        ends_at = group.ends_at or now + timedelta(
+            seconds=group.terms.duration_days * group.terms.seconds_per_day
+        )
         started = group.model_copy(
             update={
                 "status": GroupStatus.ACTIVE,
@@ -1154,6 +1198,10 @@ class GameService:
             GroupStatus.READY_FOR_ACCEPTANCE,
         )
         if group.status in before_start and now >= group.enrolment_deadline:
+            if self._startable(group):
+                with self.db.transaction():
+                    self._start(stored, group.starts_at or now, len(self.players()))
+                return self.tick(now)
             self._cancel(
                 stored,
                 "The group did not fill, lock its contracts and accept by the deadline; "

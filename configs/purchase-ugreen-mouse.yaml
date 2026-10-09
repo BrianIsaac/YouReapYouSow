@@ -1,0 +1,38 @@
+# A drop's prize, bought through Reap's Agentic module; the grant's figures are replaced
+# at purchase time by the drop's pool ceiling (the pool less its disclosed buffer).
+purchase:
+  shape: part
+  route: catalogue
+  search:
+    query: "UGREEN Dual Mode Wireless Mouse"
+    merchant_preference: {mode: ONLY, merchant_name: "UGREEN SG"}
+    context: {country: SG, currency: USD}
+    price: {min: "20", max: "30"}
+    availability: AVAILABLE_ONLY
+    limit: 10
+  match:
+    attributes:
+      Color: ["Black"]
+  merchants: ["UGREEN SG"]
+  quantity: 1
+  email: prizes@example.com
+  shipping_address:
+    first_name: Prize
+    last_name: Winner
+    phone: "+6561234567"
+    address_line1: "1 Example Road"
+    city: Singapore
+    postal_code: "000001"
+    country: SG
+  return_url: "https://example.invalid/prize/return"
+  checkout:
+    simulate_completed_when_allowed: true
+    poll_every_s: 1
+    poll_deadline_s: 90
+  grant:
+    budget_usd: 300
+    per_purchase_usd: 300
+    daily_usd: 300
+    attempts_per_need: 3
+    quote_margin_s: 15
+    ttl_hours: 4

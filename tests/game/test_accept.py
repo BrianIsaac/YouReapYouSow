@@ -11,18 +11,23 @@ from youreapyousow.game.service import GameError
 from youreapyousow.ledger.events import EventType
 
 
-def test_the_last_accept_starts_the_challenge_and_locks_the_rubric(game: Game) -> None:
-    """Three accepts: rubric locked, contracts accepted, ACTIVE with its end in demo time."""
+def test_the_challenge_starts_at_its_fixed_start_once_everyone_accepts(game: Game) -> None:
+    """Three accepts, then the published start: rubric locked, ACTIVE, the end fixed."""
+    published = game.service.group()
+    assert published.starts_at == game.clock() + timedelta(seconds=3600)
+    assert published.starts_at is not None
+    assert published.ends_at == published.starts_at + timedelta(seconds=28 * 60 / 7)
     ids = ready_group(game)
-    game.service.accept(ids[0])
-    game.service.accept(ids[1])
+    for pid in ids:
+        game.service.accept(pid)
     assert game.service.group().status == GroupStatus.READY_FOR_ACCEPTANCE
-    game.service.accept(ids[2])
+    game.clock.advance(seconds=3600)
+    game.service.tick()
     group = game.service.group()
     assert group.status == GroupStatus.ACTIVE
-    assert group.started_at == game.clock()
-    assert group.rubric_locked_at == game.clock()
-    assert group.ends_at == game.clock() + timedelta(seconds=28 * 60 / 7)
+    assert group.started_at == published.starts_at
+    assert group.rubric_locked_at == published.starts_at
+    assert group.ends_at == published.ends_at
     assert all(
         p.contract is not None and p.contract.status == ContractStatus.ACCEPTED
         for p in game.service.players()

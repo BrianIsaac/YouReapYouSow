@@ -28,17 +28,18 @@ from youreapyousow.clock import Clock, utc_now
 from youreapyousow.config import ConfigError, Settings
 from youreapyousow.control import ControlPlane, Operator, mock_card_entry, need_judge_for
 from youreapyousow.game.coach import Coach
+from youreapyousow.game.drops import Drop, load_drops
 from youreapyousow.game.llm import build_links
 from youreapyousow.game.models import GroupTerms
-from youreapyousow.game.prize import PrizeBuyer, preview_quote, prize_block
-from youreapyousow.game.service import GameService
+from youreapyousow.game.prize import PrizeBuyer
+from youreapyousow.game.service import GameError, GameService
 from youreapyousow.game.verifier import Verifier
 from youreapyousow.kwal.client import KwalClient
 from youreapyousow.kwal.session import KwalSessionError
 from youreapyousow.ledger.ledger import Ledger
 from youreapyousow.market.provisioning import MockProvisioner
 from youreapyousow.market.service import MarketMode, MarketService
-from youreapyousow.purchase import PurchaseConfig, ScenarioError, load_purchase
+from youreapyousow.purchase import PURCHASE_CONFIG_DIR, PurchaseConfig, load_purchase
 from youreapyousow.reap.client import ReapClient, ReapMock, ReapSandbox, httpx_delivery
 from youreapyousow.reap.mock.engine import AuthorizationMode
 from youreapyousow.reap.models import (
@@ -83,13 +84,10 @@ class Runtime:
         http: The shared outbound HTTP client.
         secrets: Webhook signing secret per receiving path.
         clock: Time source.
-        game: The challenge's state machine.
         coach: The intake coach.
         verifier: The photo reader.
-        purchase: The prize's purchase file, when it loads.
-        buyer: Buys the prize through the engine's agentic path.
+        drops: The drops on offer, the featured one first.
         game_lock: Serialises the challenge's mutations.
-        prize: The prize block of the polled state.
         tasks: Background tasks to cancel on shutdown.
     """
 
@@ -100,35 +98,70 @@ class Runtime:
     http: httpx.AsyncClient
     secrets: dict[str, SecretStr]
     clock: Clock
-    game: GameService
     coach: Coach
     verifier: Verifier
-    purchase: PurchaseConfig | None
-    buyer: PrizeBuyer | None = None
+    drops: dict[str, Drop] = field(default_factory=dict[str, Drop])
     game_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    prize: dict[str, JsonValue] = field(default_factory=dict[str, JsonValue])
     tasks: list[asyncio.Task[None]] = field(default_factory=list[asyncio.Task[None]])
 
-    def prize_info(self) -> dict[str, JsonValue]:
-        """Return the prize block of the polled state.
+    @property
+    def featured(self) -> Drop:
+        """Return the featured drop, the first listed: the un-keyed routes act on it.
 
         Returns:
-            The item, its merchant and list price, and the landed quote when known.
+            The drop.
         """
-        return dict(self.prize)
+        return next(iter(self.drops.values()))
 
-    async def preview_prize(self) -> None:
-        """Land the prize's quote for the pool's disclosure; keep going if Reap is slow."""
-        if self.purchase is None:
-            return
-        for _ in range(3):
-            try:
-                preview = await asyncio.wait_for(preview_quote(self.reap, self.purchase), 40)
-            except Exception:
-                continue
-            self.prize = prize_block(preview, self.settings.reap_backend)
-            self.game.prize_quote = preview.final_amount
-            return
+    @property
+    def game(self) -> GameService:
+        """Return the featured drop's group service.
+
+        Returns:
+            The service.
+        """
+        return self.featured.service
+
+    @property
+    def purchase(self) -> PurchaseConfig:
+        """Return the featured drop's prize file.
+
+        Returns:
+            The purchase file.
+        """
+        return self.featured.purchase
+
+    @property
+    def buyer(self) -> PrizeBuyer:
+        """Return the featured drop's buyer.
+
+        Returns:
+            The buyer.
+        """
+        return self.featured.buyer
+
+    def prize_info(self) -> dict[str, JsonValue]:
+        """Return the featured drop's prize block.
+
+        Returns:
+            The block.
+        """
+        return dict(self.featured.prize)
+
+    async def preview_prizes(self) -> None:
+        """Land every drop's prize quote for its disclosure, side by side."""
+        await asyncio.gather(*(drop.preview() for drop in self.drops.values()))
+
+    def set_vault(self, balance: Decimal, source: str) -> None:
+        """Set the one vault's balance and its source on every drop.
+
+        Args:
+            balance: The test USDC entries are reserved against.
+            source: Where it comes from, in one line.
+        """
+        for drop in self.drops.values():
+            drop.service.vault_balance = balance
+            drop.service.vault_source = source
 
     async def read_vault(self) -> None:
         """Read the vault's test USDC from Kwal when a session is saved; else keep the setting.
@@ -144,9 +177,10 @@ class Runtime:
         try:
             funding = await asyncio.wait_for(kwal.funding(), timeout=20)
         except Exception as error:
-            self.game.vault_source = (
+            self.set_vault(
+                self.game.vault_balance,
                 f"The Kwal vault could not be read at start ({type(error).__name__}); entries "
-                "are reserved against the configured stand-in balance"
+                "are reserved against the configured stand-in balance",
             )
             return
         finally:
@@ -154,12 +188,14 @@ class Runtime:
         available = funding.available.value if funding.available is not None else Decimal(0)
         terms = self.game.terms
         if available >= terms.entry_amount * terms.max_players:
-            self.game.vault_balance = available
-            self.game.vault_source = "Kwal vault on Ink Sepolia (test USDC, read at start)"
+            self.set_vault(available, "Kwal vault on Ink Sepolia (test USDC, read at start)")
         else:
-            self.game.vault_source = (
-                f"The Kwal vault reads {available.quantize(Decimal('0.01'))} test USDC "
-                "(not yet funded); entries are reserved against the configured stand-in balance"
+            self.set_vault(
+                self.game.vault_balance,
+                (
+                    f"The Kwal vault reads {available.quantize(Decimal('0.01'))} test USDC "
+                    "(not yet funded); entries are reserved against the configured stand-in balance"
+                ),
             )
 
     async def attach(self, app: FastAPI) -> None:
@@ -196,6 +232,16 @@ class Runtime:
         await self.reap.aclose()
         await self.http.aclose()
         self.control.repos.db.close()
+
+
+def _reserved_elsewhere(runtime: Runtime, drop_id: str) -> Callable[[], Decimal]:
+    def reserved() -> Decimal:
+        return sum(
+            (d.service.reserved() for key, d in runtime.drops.items() if key != drop_id),
+            Decimal(0),
+        )
+
+    return reserved
 
 
 def build_runtime(
@@ -247,29 +293,7 @@ def build_runtime(
         clock=clock,
         card_entry=mock_card_entry(reap.agentic) if isinstance(reap, ReapMock) else None,
     )
-    game = GameService(
-        db=db,
-        ledger=ledger,
-        clock=clock,
-        terms=GroupTerms(
-            title="Earn your prize",
-            entry_amount=settings.entry_amount,
-            enrolment_window_s=settings.enrolment_window_s,
-            duration_days=settings.duration_days,
-            seconds_per_day=settings.demo_clock,
-            dispute_window_s=settings.dispute_window_s,
-        ),
-        vault_balance=settings.vault_balance_usdc,
-        vault_source="configured stand-in balance (VAULT_BALANCE_USDC)",
-        evidence_dir=settings.evidence_dir,
-    )
-    try:
-        purchase: PurchaseConfig | None = load_purchase(settings.purchase_config)
-    except (ScenarioError, OSError):
-        purchase = None
-    if purchase is not None and purchase.search is not None:
-        game.terms = game.terms.model_copy(update={"title": f"Earn your {purchase.search.query}"})
-    coach = Coach(build_links(settings, outbound, "coach"), duration_days=settings.duration_days)
+    coach = Coach(build_links(settings, outbound, "coach"), duration_days=28)
     runtime = Runtime(
         settings,
         control,
@@ -278,29 +302,66 @@ def build_runtime(
         outbound,
         secrets,
         clock,
-        game,
         coach,
         Verifier(build_links(settings, outbound, "vision")),
-        purchase,
     )
-    runtime.prize = {
-        "name": purchase.search.query if purchase and purchase.search else None,
-        "merchant": purchase.merchants[0] if purchase else None,
-        "list_price": None,
-        "image_url": None,
-        "quote": None,
-    }
-    if purchase is not None:
-        # Only the sandbox knows the operator's enrolment; the mock enrols its own test card.
-        enrollment = settings.reap_enrollment_id if settings.reap_backend == "sandbox" else None
-        runtime.buyer = PrizeBuyer(
-            control,
-            purchase,
-            backend=settings.reap_backend,
-            enrollment_id=None if enrollment is None else str(enrollment),
+    mock_control = control
+    if not isinstance(reap, ReapMock):
+        mock_reap = ReapMock(clock=clock)
+        mock_control = ControlPlane(
+            repos=repos,
+            ledger=ledger,
+            gate=AuthorityGate(repos, ledger, clock, need_judge=need_judge_for(repos)),
+            reap=mock_reap,
+            market=market,
+            provisioner=provisioner,
+            operator=Operator(email=settings.operator_email, phone=settings.operator_phone),
+            clock=clock,
+            card_entry=mock_card_entry(mock_reap.agentic),
         )
-    if not game.has_group():
-        game.open_group()
+    # Only the sandbox knows the operator's enrolment; the mock enrols its own test card.
+    enrollment = settings.reap_enrollment_id if settings.reap_backend == "sandbox" else None
+    for config in load_drops():
+        path = PURCHASE_CONFIG_DIR / config.purchase
+        if not runtime.drops and settings.purchase_config is not None:
+            path = settings.purchase_config
+        purchase = load_purchase(path)
+        live = config.live_purchase or isinstance(reap, ReapMock)
+        drop_control = control if live else mock_control
+        backend = settings.reap_backend if live else "mock"
+        service = GameService(
+            db=db,
+            ledger=ledger,
+            clock=clock,
+            terms=GroupTerms(
+                title=config.title,
+                entry_amount=config.entry_amount,
+                enrolment_window_s=settings.enrolment_window_s,
+                duration_days=config.duration_days,
+                seconds_per_day=settings.demo_clock,
+                dispute_window_s=settings.dispute_window_s,
+            ),
+            vault_balance=settings.vault_balance_usdc,
+            vault_source="configured stand-in balance (VAULT_BALANCE_USDC)",
+            evidence_dir=settings.evidence_dir,
+            drop_id=config.id,
+            reserved_elsewhere=_reserved_elsewhere(runtime, config.id),
+        )
+        runtime.drops[config.id] = Drop(
+            config=config,
+            service=service,
+            purchase=purchase,
+            reap=drop_control.reap,
+            backend=backend,
+            buyer=PrizeBuyer(
+                drop_control,
+                purchase,
+                backend=backend,
+                enrollment_id=None if enrollment is None or not live else str(enrollment),
+            ),
+        )
+        if not service.has_group():
+            service.open_group()
     return runtime
 
 
@@ -321,6 +382,13 @@ async def _invalid(request: Request, error: Exception) -> JSONResponse:
     return JSONResponse({"error": {"code": "INVALID_REQUEST", "message": message}}, status_code=422)
 
 
+async def _refused(request: Request, error: Exception) -> JSONResponse:
+    del request
+    if not isinstance(error, GameError):
+        raise error
+    return game_routes.refused(error)
+
+
 def _mount_game(app: FastAPI) -> None:
     """Add the challenge's routes, its error shape, and the room screen's files.
 
@@ -329,6 +397,7 @@ def _mount_game(app: FastAPI) -> None:
     """
     app.include_router(game_routes.router)
     app.add_exception_handler(RequestValidationError, _invalid)
+    app.add_exception_handler(GameError, _refused)
     if WEB_DIR.is_dir():
         app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
 
@@ -349,7 +418,7 @@ def create_app(factory: Callable[[], Awaitable[Runtime]]) -> FastAPI:
         app.state.runtime = runtime
         await runtime.attach(app)
         await runtime.read_vault()
-        runtime.tasks.append(asyncio.create_task(runtime.preview_prize()))
+        runtime.tasks.append(asyncio.create_task(runtime.preview_prizes()))
         # Also on the mock market, where it reads the fixtures, so /status names every
         # connector and its source from the first request.
         await runtime.market.refresh()

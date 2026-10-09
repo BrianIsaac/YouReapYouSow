@@ -112,6 +112,10 @@ def test_the_three_bundled_catalogues_load_and_merge() -> None:
         "Kestrel Parts",
         "Example Merchant",
         "Keychron",
+        "UGREEN SG",
+        "Anker",
+        "PRISM+ Singapore",
+        "Boxgreen",
     ]
     assert bundled_catalogue("parts").names == ("parts",)
 

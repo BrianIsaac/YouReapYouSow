@@ -381,6 +381,7 @@ def state_view(
             "currency": group.terms.currency,
             "enrolment_deadline": group.enrolment_deadline.isoformat(),
             "duration_days": group.terms.duration_days,
+            "starts_at": _iso(group.starts_at),
             "started_at": _iso(group.started_at),
             "ends_at": _iso(group.ends_at),
             "dispute_window_ends_at": _iso(group.dispute_window_ends_at),

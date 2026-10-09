@@ -97,7 +97,8 @@ class GroupTerms(_Frozen):
         currency: Always ``USD`` (test USDC, 1:1).
         min_players: The quorum to start.
         max_players: The capacity.
-        enrolment_window_s: Real seconds from opening to the enrolment deadline.
+        enrolment_window_s: Real seconds from publication to the fixed start; joining,
+            the coach and acceptance happen in it.
         duration_days: The challenge's length in challenge days.
         seconds_per_day: Demo time: real seconds per challenge day.
         dispute_window_s: Real seconds the dispute window stays open.
@@ -298,9 +299,10 @@ class Group(_Frozen):
         terms: The published terms.
         status: Where it is.
         opened_at: When it opened.
-        enrolment_deadline: When an unfilled group cancels.
-        started_at: When the challenge started.
-        ends_at: When submissions close.
+        enrolment_deadline: When an unready group cancels: its fixed start.
+        starts_at: The fixed start, set at publication.
+        started_at: When the challenge actually started (its fixed start).
+        ends_at: When submissions close, fixed at publication.
         dispute_window_ends_at: When the dispute window closes.
         rubric_version: The rubric in force.
         rubric_locked_at: When the rubric was locked.
@@ -313,6 +315,7 @@ class Group(_Frozen):
     status: GroupStatus
     opened_at: datetime
     enrolment_deadline: datetime
+    starts_at: datetime | None = None
     started_at: datetime | None = None
     ends_at: datetime | None = None
     dispute_window_ends_at: datetime | None = None

@@ -103,8 +103,9 @@ def http(running: Running) -> httpx.AsyncClient:
     return running.http
 
 
-async def test_three_players_join_talk_lock_and_accept(http: httpx.AsyncClient) -> None:
-    """The happy path to ACTIVE through the routes, with the state the screen polls."""
+async def test_three_players_join_talk_lock_and_accept(running: Running) -> None:
+    """The happy path to ACTIVE at the fixed start, with the state the screen polls."""
+    http = running.http
     state = (await http.get("/api/state")).json()
     assert state["group"]["status"] == "OPEN_FOR_JOINING"
     assert state["clock"]["label"] == "Demo time: 1 minute = 1 week"
@@ -132,6 +133,10 @@ async def test_three_players_join_talk_lock_and_accept(http: httpx.AsyncClient) 
         assert (await http.post("/api/contract/lock", json={"player_id": pid})).status_code == 200
     for pid in ids:
         assert (await http.post("/api/accept", json={"player_id": pid})).status_code == 200
+    waiting = (await http.get("/api/state")).json()
+    assert waiting["group"]["status"] == "READY_FOR_ACCEPTANCE"
+    assert all(p["accepted"] for p in waiting["players"])
+    running.clock.advance(seconds=3600)
     state = (await http.get("/api/state")).json()
     assert state["group"]["status"] == "ACTIVE"
     assert state["group"]["rubric_locked"] is True
@@ -154,7 +159,7 @@ async def test_a_refusal_has_a_code_and_a_line(http: httpx.AsyncClient) -> None:
     assert malformed.json()["error"]["code"] == "INVALID_REQUEST"
 
 
-async def _active(http: httpx.AsyncClient) -> list[str]:
+async def _active(http: httpx.AsyncClient, clock: ManualClock) -> list[str]:
     ids: list[str] = []
     for name in ("Alice", "Ben", "Chloe"):
         ids.append(str((await http.post("/api/join", json={"name": name})).json()["player_id"]))
@@ -163,14 +168,17 @@ async def _active(http: httpx.AsyncClient) -> list[str]:
         await http.post("/api/contract/lock", json={"player_id": pid})
     for pid in ids:
         await http.post("/api/accept", json={"player_id": pid})
+    clock.advance(seconds=3600)
+    assert (await http.get("/api/state")).json()["group"]["status"] == "ACTIVE"
     return ids
 
 
 async def test_a_photo_check_in_is_read_advisorily_and_scored_by_the_rubric(
-    http: httpx.AsyncClient,
+    running: Running,
 ) -> None:
     """A multipart photo: the advisory beside it, 15 points, the leaderboard moved."""
-    alice, ben, _ = await _active(http)
+    http = running.http
+    alice, ben, _ = await _active(http, running.clock)
     answer = await http.post(
         "/api/checkin",
         data={"player_id": alice, "milestone": "0", "value": "9"},
@@ -199,7 +207,7 @@ async def test_a_photo_check_in_is_read_advisorily_and_scored_by_the_rubric(
 async def test_finalize_buys_the_prize_and_the_state_shows_the_order(running: Running) -> None:
     """Through the routes on the mock: the winner, the order id, the stand-in line, FULFILLED."""
     http = running.http
-    alice, *_ = await _active(http)
+    alice, *_ = await _active(http, running.clock)
     await http.post(
         "/api/checkin",
         data={"player_id": alice, "milestone": "0", "value": "9"},
@@ -229,7 +237,7 @@ async def test_finalize_buys_the_prize_and_the_state_shows_the_order(running: Ru
 async def test_the_score_events_and_the_ledger_read_back_for_the_screen(running: Running) -> None:
     """``/api/events`` per player and ``/api/ledger`` after a position, each with summaries."""
     http = running.http
-    alice, ben, _ = await _active(http)
+    alice, ben, _ = await _active(http, running.clock)
     await http.post("/api/checkin", data={"player_id": ben, "milestone": "0", "value": "1"})
     events = (await http.get("/api/events", params={"player_id": ben})).json()["events"]
     assert [e["state"] for e in events] == ["VERIFIED"]
@@ -241,3 +249,44 @@ async def test_the_score_events_and_the_ledger_read_back_for_the_screen(running:
     after = (await http.get("/api/ledger", params={"after_seq": last["seq"]})).json()
     assert after["events"] == []
     assert after["chain_intact"] is True
+
+
+async def test_the_drops_are_listed_and_each_runs_its_own_group(running: Running) -> None:
+    """Five drops, the featured first; a seat in one is keyed by its drop alone."""
+    http = running.http
+    drops = (await http.get("/api/drops")).json()["drops"]
+    assert [d["drop_id"] for d in drops] == [
+        "keychron-b40",
+        "ugreen-mouse",
+        "anker-hub",
+        "prism-monitor",
+        "boxgreen-snacks",
+    ]
+    assert drops[0]["featured"] is True
+    assert [d["duration_days"] for d in drops] == [28, 7, 14, 28, 7]
+    for d in drops:
+        assert d["pool_at_capacity"]["surplus"] is not None
+        assert float(d["pool_at_capacity"]["surplus"]) > 0
+    mouse = next(d for d in drops if d["drop_id"] == "ugreen-mouse")
+    assert mouse["prize"]["currency"] == "SGD"
+    assert mouse["prize"]["live_purchase"] is False
+    assert mouse["note"]
+    joined = await http.post("/api/drops/ugreen-mouse/join", json={"name": "Dan"})
+    assert joined.status_code == 200
+    state = joined.json()["state"]
+    assert state["drop"]["drop_id"] == "ugreen-mouse"
+    assert state["drop"]["seats"]["taken"] == 1
+    featured = (await http.get("/api/drops/keychron-b40")).json()
+    assert featured["players"] == []
+    unknown = await http.get("/api/drops/nothing")
+    assert unknown.json()["error"]["code"] == "UNKNOWN_DROP"
+
+
+async def test_a_republished_drop_starts_after_the_lead_given(running: Running) -> None:
+    """Reset with a 90 second lead: a fresh group whose fixed start is 90 seconds away."""
+    http = running.http
+    state = (await http.post("/api/drops/anker-hub/reset", json={"lead_s": 90})).json()["state"]
+    group = state["group"]
+    assert group["status"] == "OPEN_FOR_JOINING"
+    assert group["starts_at"] is not None
+    assert state["drop"]["duration_days"] == 14

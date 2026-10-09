@@ -1,0 +1,51 @@
+# The drops on offer: each its own prize, entry, seats and fixed date range. The first is
+# featured (the un-keyed routes act on it). Prices: the merchant sheet of 9 October 2026;
+# the sandbox prices the four Singapore merchants in SGD, which the gate does not buy (the
+# pool is test USDC, so the budget is USD), so those buy on the mock, where they are listed
+# at illustrative USD prices. Entries are sized so three clear the landed quote after the
+# 10% buffer.
+drops:
+  - id: keychron-b40
+    title: Earn your Keychron B40
+    purchase: purchase-prize.yaml
+    list_price: "49.99"
+    currency: USD
+    entry_amount: "25.00"
+    duration_days: 28
+    live_purchase: true
+  - id: ugreen-mouse
+    title: Earn your UGREEN wireless mouse
+    purchase: purchase-ugreen-mouse.yaml
+    list_price: "32.99"
+    currency: SGD
+    entry_amount: "12.00"
+    duration_days: 7
+    live_purchase: false
+    note: "Priced in SGD on Reap's sandbox; the gate buys only in USD, the pool's currency, so this drop's prize is bought on the mock."
+  - id: anker-hub
+    title: Earn your Anker Nano hub
+    purchase: purchase-anker-hub.yaml
+    list_price: "72.90"
+    currency: SGD
+    entry_amount: "25.00"
+    duration_days: 14
+    live_purchase: false
+    note: "Priced in SGD on Reap's sandbox; the gate buys only in USD, the pool's currency, so this drop's prize is bought on the mock."
+  - id: prism-monitor
+    title: Earn your PRISM+ W290U monitor
+    purchase: purchase-prism-monitor.yaml
+    list_price: "199.00"
+    currency: SGD
+    entry_amount: "65.00"
+    duration_days: 28
+    live_purchase: false
+    note: "Priced in SGD on Reap's sandbox (SGD 379, or 160 on promotion, not the sheet's 199); the gate buys only in USD, so this drop's prize is bought on the mock."
+  - id: boxgreen-snacks
+    title: Earn the Boxgreen snack bag
+    purchase: purchase-boxgreen-snacks.yaml
+    list_price: "50.00"
+    currency: SGD
+    entry_amount: "17.00"
+    duration_days: 7
+    live_purchase: false
+    note: "Not listed in Reap's sandbox catalogue; this drop's prize is bought on the mock."
