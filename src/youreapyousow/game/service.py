@@ -196,6 +196,14 @@ class GameService:
         record, version = self._groups.require(groups[-1].id)
         return _Stored(record, version)
 
+    def has_group(self) -> bool:
+        """Say whether any group was ever opened.
+
+        Returns:
+            True when one was.
+        """
+        return bool(self._groups.list())
+
     def group(self) -> Group:
         """Return the current group.
 
@@ -604,6 +612,94 @@ class GameService:
                     {"players": len(players), "rubric_version": group.rubric_version},
                 )
         return locked
+
+    # Acceptance and start
+
+    def accept(self, player_id: str) -> Group:
+        """Record the player's acceptance; the last one starts the challenge.
+
+        The challenge starts only on the quorum, every seat funded, every contract locked
+        and every player accepting. The rubric is locked in the same transaction.
+
+        Args:
+            player_id: The player.
+
+        Returns:
+            The group after the acceptance.
+
+        Raises:
+            GameError: If the group is not ready or the player has already accepted.
+        """
+        self.tick()
+        stored_group = self._require(GroupStatus.READY_FOR_ACCEPTANCE)
+        group = stored_group.record
+        stored = self.player(player_id)
+        player = stored.record
+        if player.accepted_at is not None:
+            raise GameError("ALREADY_ACCEPTED", "You have already accepted.")
+        if player.contract is None or player.contract.status != ContractStatus.LOCKED:
+            raise GameError("NOT_LOCKED", "Lock your contract before accepting.")
+        now = self.clock()
+        accepted = player.contract.model_copy(update={"status": ContractStatus.ACCEPTED})
+        with self.db.transaction():
+            self._save_player(
+                stored, player.model_copy(update={"accepted_at": now, "contract": accepted})
+            )
+            self._contract_event(EventType.CONTRACT_ACCEPTED, group, accepted)
+            players = self.players()
+            startable = (
+                len(players) >= group.terms.min_players
+                and all(p.entry == EntryState.RESERVED for p in players)
+                and all(p.intake == IntakeState.LOCKED for p in players)
+                and all(p.accepted_at is not None for p in players)
+            )
+            if startable:
+                self._start(stored_group, now, len(players))
+        return self.group()
+
+    def _start(self, stored: _Stored[Group], now: datetime, players: int) -> None:
+        group = stored.record
+        ends_at = now + timedelta(seconds=group.terms.duration_days * group.terms.seconds_per_day)
+        started = group.model_copy(
+            update={
+                "status": GroupStatus.ACTIVE,
+                "started_at": now,
+                "ends_at": ends_at,
+                "rubric_locked_at": now,
+            }
+        )
+        self._save_group(stored, started)
+        self._event(EventType.RUBRIC_LOCKED, group, group.id, self.rubric.model_dump(mode="json"))
+        pool = self.pool()
+        self._event(
+            EventType.GROUP_STARTED,
+            group,
+            group.id,
+            {
+                "players": players,
+                "started_at": now.isoformat(),
+                "ends_at": ends_at.isoformat(),
+                "duration_days": group.terms.duration_days,
+                "seconds_per_day": group.terms.seconds_per_day,
+                "pool_gross": money(pool.gross),
+                "prize_ceiling": money(pool.ceiling),
+            },
+        )
+
+    def decline(self, player_id: str) -> Group:
+        """Record a player declining the agreement: the group cancels and refunds.
+
+        Args:
+            player_id: The player.
+
+        Returns:
+            The cancelled group.
+        """
+        self.tick()
+        stored = self._require(GroupStatus.READY_FOR_ACCEPTANCE)
+        player = self.player(player_id).record
+        self._cancel(stored, f"{player.name} declined the agreement; every entry is refunded.")
+        return self.group()
 
     # Time
 

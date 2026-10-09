@@ -10,21 +10,32 @@ import json
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import cast
 
 import httpx
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import SecretStr, ValidationError
+from fastapi.staticfiles import StaticFiles
+from pydantic import JsonValue, SecretStr, ValidationError
 
+from youreapyousow.api import game as game_routes
 from youreapyousow.api.status import reap_status
 from youreapyousow.authority.gate import AuthorityGate
 from youreapyousow.clock import Clock, utc_now
 from youreapyousow.config import ConfigError, Settings
 from youreapyousow.control import ControlPlane, Operator, mock_card_entry, need_judge_for
+from youreapyousow.game.coach import Coach
+from youreapyousow.game.llm import Link, build_links
+from youreapyousow.game.models import GroupTerms
+from youreapyousow.game.service import GameService
 from youreapyousow.kwal.client import KwalClient
+from youreapyousow.kwal.session import KwalSessionError
 from youreapyousow.ledger.ledger import Ledger
 from youreapyousow.market.provisioning import MockProvisioner
 from youreapyousow.market.service import MarketMode, MarketService
+from youreapyousow.purchase import PurchaseConfig, ScenarioError, load_purchase
 from youreapyousow.reap.client import ReapClient, ReapMock, ReapSandbox, httpx_delivery
 from youreapyousow.reap.mock.engine import AuthorizationMode
 from youreapyousow.reap.models import (
@@ -37,6 +48,7 @@ from youreapyousow.repos import Repositories
 from youreapyousow.store import Database
 
 SELF_BASE_URL = "http://youreapyousow.local"
+WEB_DIR = Path(__file__).resolve().parents[3] / "web"
 NOTIFY_PATH = "/webhooks/reap"
 AUTHORISE_PATH = "/webhooks/reap/authorization"
 
@@ -68,6 +80,12 @@ class Runtime:
         http: The shared outbound HTTP client.
         secrets: Webhook signing secret per receiving path.
         clock: Time source.
+        game: The challenge's state machine.
+        coach: The intake coach.
+        vision: The photo reader's model chain.
+        purchase: The prize's purchase file, when it loads.
+        game_lock: Serialises the challenge's mutations.
+        prize: The prize block of the polled state.
         tasks: Background tasks to cancel on shutdown.
     """
 
@@ -78,7 +96,42 @@ class Runtime:
     http: httpx.AsyncClient
     secrets: dict[str, SecretStr]
     clock: Clock
+    game: GameService
+    coach: Coach
+    vision: list[Link]
+    purchase: PurchaseConfig | None
+    game_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    prize: dict[str, JsonValue] = field(default_factory=dict[str, JsonValue])
     tasks: list[asyncio.Task[None]] = field(default_factory=list[asyncio.Task[None]])
+
+    def prize_info(self) -> dict[str, JsonValue]:
+        """Return the prize block of the polled state.
+
+        Returns:
+            The item, its merchant and list price, and the landed quote when known.
+        """
+        return dict(self.prize)
+
+    async def read_vault(self) -> None:
+        """Read the vault's test USDC from Kwal when a session is saved; else keep the setting.
+
+        On the mock the configured balance stands, so no test reaches a real gateway.
+        """
+        if self.settings.reap_backend == "mock":
+            return
+        try:
+            kwal = KwalClient.from_settings(self.settings)
+        except (ConfigError, KwalSessionError, OSError, ValueError):
+            return
+        try:
+            funding = await asyncio.wait_for(kwal.funding(), timeout=10)
+        except Exception:
+            return
+        finally:
+            await kwal.aclose()
+        if funding.available is not None:
+            self.game.vault_balance = funding.available.value
+            self.game.vault_source = "Kwal vault on Ink Sepolia (test USDC, read at start)"
 
     async def attach(self, app: FastAPI) -> None:
         """Wire the mock's webhook delivery into this app and register its endpoints.
@@ -165,7 +218,81 @@ def build_runtime(
         clock=clock,
         card_entry=mock_card_entry(reap.agentic) if isinstance(reap, ReapMock) else None,
     )
-    return Runtime(settings, control, reap, market, outbound, secrets, clock)
+    game = GameService(
+        db=db,
+        ledger=ledger,
+        clock=clock,
+        terms=GroupTerms(
+            title="Earn your prize",
+            entry_amount=settings.entry_amount,
+            enrolment_window_s=settings.enrolment_window_s,
+            duration_days=settings.duration_days,
+            seconds_per_day=settings.demo_clock,
+            dispute_window_s=settings.dispute_window_s,
+        ),
+        vault_balance=settings.vault_balance_usdc,
+        vault_source="configured stand-in balance (VAULT_BALANCE_USDC)",
+        evidence_dir=settings.evidence_dir,
+    )
+    try:
+        purchase: PurchaseConfig | None = load_purchase(settings.purchase_config)
+    except (ScenarioError, OSError):
+        purchase = None
+    if purchase is not None and purchase.search is not None:
+        game.terms = game.terms.model_copy(update={"title": f"Earn your {purchase.search.query}"})
+    coach = Coach(build_links(settings, outbound, "coach"), duration_days=settings.duration_days)
+    runtime = Runtime(
+        settings,
+        control,
+        reap,
+        market,
+        outbound,
+        secrets,
+        clock,
+        game,
+        coach,
+        build_links(settings, outbound, "vision"),
+        purchase,
+    )
+    runtime.prize = {
+        "name": purchase.search.query if purchase and purchase.search else None,
+        "merchant": purchase.merchants[0] if purchase else None,
+        "list_price": None,
+        "image_url": None,
+        "quote": None,
+    }
+    if not game.has_group():
+        game.open_group()
+    return runtime
+
+
+async def _invalid(request: Request, error: Exception) -> JSONResponse:
+    del request
+    message = "invalid request"
+    if isinstance(error, RequestValidationError):
+        errors: list[dict[str, object]] = list(error.errors())
+        if errors:
+            loc = errors[0].get("loc")
+            parts = (
+                [str(p) for p in cast(tuple[object, ...], loc)[1:]]
+                if isinstance(loc, tuple)
+                else []
+            )
+            msg = str(errors[0].get("msg", message))
+            message = f"{'.'.join(parts)}: {msg}" if parts else msg
+    return JSONResponse({"error": {"code": "INVALID_REQUEST", "message": message}}, status_code=422)
+
+
+def _mount_game(app: FastAPI) -> None:
+    """Add the challenge's routes, its error shape, and the room screen's files.
+
+    Args:
+        app: The app.
+    """
+    app.include_router(game_routes.router)
+    app.add_exception_handler(RequestValidationError, _invalid)
+    if WEB_DIR.is_dir():
+        app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
 
 
 def create_app(factory: Callable[[], Awaitable[Runtime]]) -> FastAPI:
@@ -183,6 +310,7 @@ def create_app(factory: Callable[[], Awaitable[Runtime]]) -> FastAPI:
         runtime = await factory()
         app.state.runtime = runtime
         await runtime.attach(app)
+        await runtime.read_vault()
         # Also on the mock market, where it reads the fixtures, so /status names every
         # connector and its source from the first request.
         await runtime.market.refresh()
@@ -267,6 +395,7 @@ def create_app(factory: Callable[[], Awaitable[Runtime]]) -> FastAPI:
     app.add_api_route("/status", status, methods=["GET"])
     app.add_api_route(NOTIFY_PATH, notification, methods=["POST"])
     app.add_api_route(AUTHORISE_PATH, authorisation, methods=["POST"])
+    _mount_game(app)
     return app
 
 

@@ -1,0 +1,302 @@
+"""The challenge's HTTP routes, under ``/api``: what the room screen calls and polls.
+
+Every route moves the group's clock first (``tick``). A refusal is a 4xx with
+``{"error": {"code", "message"}}``. Mutations are serialised by one lock; the model calls
+(the coach, the photo reader) happen outside it, so a slow model never blocks the room.
+"""
+
+from typing import TYPE_CHECKING, Any
+
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, JsonValue
+
+from youreapyousow.game.service import GameError
+from youreapyousow.game.view import contract_view, ledger_view, score_view, state_view
+
+if TYPE_CHECKING:
+    from youreapyousow.api.app import Runtime
+
+router = APIRouter(prefix="/api")
+
+
+def runtime_of(request: Request) -> "Runtime":
+    """Return the app's runtime.
+
+    Args:
+        request: The request.
+
+    Returns:
+        The runtime.
+    """
+    runtime: Runtime = request.app.state.runtime
+    return runtime
+
+
+def refused(error: GameError) -> JSONResponse:
+    """Render a refusal.
+
+    Args:
+        error: The refusal.
+
+    Returns:
+        The response.
+    """
+    return JSONResponse(
+        {"error": {"code": error.code, "message": error.message}}, status_code=error.status
+    )
+
+
+def state_of(runtime: "Runtime") -> dict[str, JsonValue]:
+    """Build the polled state after applying the clock.
+
+    Args:
+        runtime: The runtime.
+
+    Returns:
+        The state.
+    """
+    game = runtime.game
+    game.tick()
+    events = game.ledger.events(after_seq=max(0, _last_seq(runtime) - 12))
+    return state_view(game, runtime.prize_info(), events)
+
+
+def _last_seq(runtime: "Runtime") -> int:
+    rows = runtime.game.db.read("SELECT MAX(seq) AS seq FROM events")
+    value: Any = rows[0]["seq"] if rows else 0
+    return int(value or 0)
+
+
+class JoinBody(BaseModel):
+    """``POST /api/join``."""
+
+    name: str = Field(max_length=200)
+
+
+class PlayerBody(BaseModel):
+    """A body that names the player."""
+
+    player_id: str
+
+
+class IntakeBody(PlayerBody):
+    """``POST /api/intake``."""
+
+    message: str = Field(min_length=1, max_length=2000)
+
+
+class ContractBody(PlayerBody):
+    """``PUT /api/contract``: the fields the player may edit."""
+
+    goal_statement: str | None = None
+    baseline_value: float | None = None
+    target_value: float | None = None
+    unit: str | None = None
+    milestone_targets: list[float] | None = None
+
+
+@router.get("/state")
+async def get_state(request: Request) -> JSONResponse:
+    """Return the polled state.
+
+    Args:
+        request: The request.
+
+    Returns:
+        The state.
+    """
+    runtime = runtime_of(request)
+    async with runtime.game_lock:
+        return JSONResponse(state_of(runtime))
+
+
+@router.post("/join")
+async def join(body: JoinBody, request: Request) -> JSONResponse:
+    """Reserve a seat and an entry.
+
+    Args:
+        body: The name.
+        request: The request.
+
+    Returns:
+        The new player id and the state.
+    """
+    runtime = runtime_of(request)
+    async with runtime.game_lock:
+        try:
+            player = runtime.game.join(body.name)
+        except GameError as error:
+            return refused(error)
+        return JSONResponse({"player_id": player.id, "state": state_of(runtime)})
+
+
+@router.post("/intake")
+async def intake(body: IntakeBody, request: Request) -> JSONResponse:
+    """Talk to the coach.
+
+    Args:
+        body: The player and the message.
+        request: The request.
+
+    Returns:
+        The coach's reply, the contract when proposed, and whether it is.
+    """
+    runtime = runtime_of(request)
+    try:
+        async with runtime.game_lock:
+            player = runtime.game.intake_player(body.player_id)
+        turn = await runtime.coach.respond(player.transcript, body.message)
+        async with runtime.game_lock:
+            saved = runtime.game.record_intake(body.player_id, body.message, turn)
+            group = runtime.game.group()
+    except GameError as error:
+        return refused(error)
+    contract = None if saved.contract is None else contract_view(saved.contract, group)
+    return JSONResponse(
+        {
+            "reply": turn.reply,
+            "contract": contract,
+            "done": contract is not None,
+            "model": turn.model,
+        }
+    )
+
+
+@router.put("/contract")
+async def edit_contract(body: ContractBody, request: Request) -> JSONResponse:
+    """Edit the player's proposed contract.
+
+    Args:
+        body: The edits.
+        request: The request.
+
+    Returns:
+        The edited contract.
+    """
+    runtime = runtime_of(request)
+    changes = body.model_dump(exclude_none=True, exclude={"player_id"})
+    async with runtime.game_lock:
+        try:
+            contract = runtime.game.edit_contract(body.player_id, changes)
+        except GameError as error:
+            return refused(error)
+        return JSONResponse({"contract": contract_view(contract, runtime.game.group())})
+
+
+@router.post("/contract/lock")
+async def lock_contract(body: PlayerBody, request: Request) -> JSONResponse:
+    """Lock the player's contract.
+
+    Args:
+        body: The player.
+        request: The request.
+
+    Returns:
+        The locked contract.
+    """
+    runtime = runtime_of(request)
+    async with runtime.game_lock:
+        try:
+            contract = runtime.game.lock_contract(body.player_id)
+        except GameError as error:
+            return refused(error)
+        return JSONResponse({"contract": contract_view(contract, runtime.game.group())})
+
+
+@router.post("/accept")
+async def accept(body: PlayerBody, request: Request) -> JSONResponse:
+    """Accept the group agreement.
+
+    Args:
+        body: The player.
+        request: The request.
+
+    Returns:
+        The state.
+    """
+    runtime = runtime_of(request)
+    async with runtime.game_lock:
+        try:
+            runtime.game.accept(body.player_id)
+        except GameError as error:
+            return refused(error)
+        return JSONResponse({"state": state_of(runtime)})
+
+
+@router.post("/decline")
+async def decline(body: PlayerBody, request: Request) -> JSONResponse:
+    """Decline the group agreement, cancelling the group.
+
+    Args:
+        body: The player.
+        request: The request.
+
+    Returns:
+        The state.
+    """
+    runtime = runtime_of(request)
+    async with runtime.game_lock:
+        try:
+            runtime.game.decline(body.player_id)
+        except GameError as error:
+            return refused(error)
+        return JSONResponse({"state": state_of(runtime)})
+
+
+@router.post("/reset")
+async def reset(request: Request) -> JSONResponse:
+    """Open a fresh group, refunding an unfinished one.
+
+    Args:
+        request: The request.
+
+    Returns:
+        The state.
+    """
+    runtime = runtime_of(request)
+    async with runtime.game_lock:
+        runtime.game.reset()
+        return JSONResponse({"state": state_of(runtime)})
+
+
+@router.get("/ledger")
+async def ledger(request: Request, after_seq: int = 0) -> JSONResponse:
+    """Return the ledger after a position, and whether the chain is intact.
+
+    Args:
+        request: The request.
+        after_seq: Only events after this position.
+
+    Returns:
+        The events.
+    """
+    runtime = runtime_of(request)
+    async with runtime.game_lock:
+        names = {p.id: p.name for p in runtime.game.players()}
+        events = runtime.game.ledger.events(after_seq=after_seq)
+        return JSONResponse(
+            {
+                "chain_intact": runtime.game.ledger.verify_chain().ok,
+                "events": [ledger_view(e, names) for e in events],
+            }
+        )
+
+
+@router.get("/events")
+async def score_events(request: Request, player_id: str | None = None) -> JSONResponse:
+    """Return the group's score events, optionally one player's.
+
+    Args:
+        request: The request.
+        player_id: Only this player's, when given.
+
+    Returns:
+        The events.
+    """
+    runtime = runtime_of(request)
+    async with runtime.game_lock:
+        events = runtime.game.score_events()
+        if player_id is not None:
+            events = [e for e in events if e.participant_id == player_id]
+        return JSONResponse({"events": [score_view(e) for e in events]})
