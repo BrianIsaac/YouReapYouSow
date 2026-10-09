@@ -218,6 +218,7 @@ const LEDGER_TYPE_LABEL = {
   "score.disputed": "Score disputed",
   "score.reviewed": "Dispute reviewed",
   "standings.frozen": "Standings frozen",
+  "dispute_window.opened": "Dispute window open",
   "group.finalized": "Group finalised",
   "quote.landed": "Quote landed",
   "policy.decided": "Gate decided",
