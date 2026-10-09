@@ -307,3 +307,34 @@ async def test_the_stand_in_vault_holds_every_drop_at_capacity(running: Running)
         for name in ("A", "B", "C"):
             answer = await http.post(f"/api/drops/{d['drop_id']}/join", json={"name": name})
             assert answer.status_code == 200, answer.json()
+
+
+async def test_a_disputed_check_in_reads_as_one_line_and_is_reviewed_by_either_id(
+    running: Running,
+) -> None:
+    """``/events`` folds a dispute into its check-in; review takes the dispute's own id too."""
+    http = running.http
+    alice, ben, _ = await _active(http, running.clock)
+    await http.post(
+        "/api/checkin",
+        data={"player_id": alice, "milestone": "0", "value": "9"},
+        files={"file": ("p.jpg", b"\\xff\\xd8 y", "image/jpeg")},
+    )
+    running.clock.advance(seconds=4 * 60 + 1)
+    await http.get("/api/state")
+    line = (await http.get("/api/events")).json()["events"][0]
+    disputed = await http.post(
+        "/api/dispute", json={"player_id": ben, "event_id": line["event_id"], "reason": "blurry"}
+    )
+    dispute_id = disputed.json()["event"]["event_id"]
+    folded = (await http.get("/api/events")).json()["events"]
+    assert len(folded) == 1
+    assert folded[0]["state"] == "DISPUTED"
+    assert folded[0]["delta"] == 0
+    assert [h["state"] for h in folded[0]["history"]] == ["VERIFIED", "DISPUTED"]
+    reviewed = await http.post(
+        "/api/dispute/review", json={"event_id": dispute_id, "reinstate": True}
+    )
+    assert reviewed.status_code == 200
+    again = (await http.get("/api/events")).json()["events"][0]
+    assert (again["state"], again["delta"]) == ("VERIFIED", 15)

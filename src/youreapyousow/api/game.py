@@ -408,7 +408,7 @@ async def ledger(request: Request, after_seq: int = 0, drop_id: str | None = Non
 async def score_events(
     request: Request, drop_id: str | None = None, player_id: str | None = None
 ) -> JSONResponse:
-    """Return the group's score events, optionally one player's.
+    """Return one line per check-in as it stands now, with its history; optionally one player's.
 
     Args:
         request: The request.
@@ -421,10 +421,17 @@ async def score_events(
     runtime = runtime_of(request)
     drop = drop_of(runtime, drop_id)
     async with runtime.game_lock:
-        events = drop.service.score_events()
+        lines = drop.service.checkins()
         if player_id is not None:
-            events = [e for e in events if e.participant_id == player_id]
-        return JSONResponse({"events": [score_view(e) for e in events]})
+            lines = [(c, h) for c, h in lines if c.participant_id == player_id]
+        return JSONResponse(
+            {
+                "events": [
+                    score_view(current) | {"history": [score_view(e) for e in history]}
+                    for current, history in lines
+                ]
+            }
+        )
 
 
 @router.post("/checkin")

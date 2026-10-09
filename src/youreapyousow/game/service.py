@@ -964,10 +964,32 @@ class GameService:
     # Disputes, the result and the prize
 
     def _original(self, event_id: str) -> ScoreEvent:
-        for event in self.score_events():
-            if event.event_id == event_id and event.supersedes is None:
-                return event
-        raise GameError("UNKNOWN_EVENT", "No such check-in in this group.", 404)
+        events = self.score_events()
+        found = next((e for e in events if e.event_id == event_id), None)
+        if found is not None and found.supersedes is not None:
+            found = next((e for e in events if e.event_id == found.supersedes), None)
+        if found is None or found.supersedes is not None:
+            raise GameError("UNKNOWN_EVENT", "No such check-in in this group.", 404)
+        return found
+
+    def checkins(self) -> list[tuple[ScoreEvent, list[ScoreEvent]]]:
+        """Fold the score events into one current line per check-in, with its history.
+
+        Returns:
+            Each check-in as it stands now (state, points and reason from its latest
+            event), and every event about it, oldest first.
+        """
+        events = self.score_events()
+        out: list[tuple[ScoreEvent, list[ScoreEvent]]] = []
+        for original in (e for e in events if e.supersedes is None):
+            history = [original] + [e for e in events if e.supersedes == original.event_id]
+            latest = history[-1]
+            delta = original.delta if latest.state == ScoreState.VERIFIED else 0
+            current = original.model_copy(
+                update={"state": latest.state, "delta": delta, "reason": latest.reason}
+            )
+            out.append((current, history))
+        return out
 
     def _supersede(
         self, original: ScoreEvent, state: ScoreState, delta: int, reason: str, type_: EventType
@@ -1012,7 +1034,7 @@ class GameService:
             raise GameError("DISPUTE_WINDOW_CLOSED", "Disputes are taken only in the window.")
         who = self.player(player_id).record
         original = self._original(event_id)
-        if effective_states(self.score_events()).get(event_id) != ScoreState.VERIFIED:
+        if effective_states(self.score_events()).get(original.event_id) != ScoreState.VERIFIED:
             raise GameError("NOT_DISPUTABLE", "Only a verified check-in can be disputed.")
         return self._supersede(
             original,
@@ -1038,7 +1060,7 @@ class GameService:
         self.tick()
         self._require(GroupStatus.DISPUTE_WINDOW)
         original = self._original(event_id)
-        if effective_states(self.score_events()).get(event_id) != ScoreState.DISPUTED:
+        if effective_states(self.score_events()).get(original.event_id) != ScoreState.DISPUTED:
             raise GameError("NOT_DISPUTED", "That check-in is not disputed.")
         if reinstate:
             return self._supersede(
