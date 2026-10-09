@@ -18,12 +18,23 @@ export function mount(ctx) {
 
   let events = [];
   let latest = null;
+  let pendingRow = null;
   let ctxNow = ctx;
   const camera = ctx.me ? createCamera() : null;
-  const checkin = ctx.me ? createCheckin(() => ctxNow, (event) => {
-    latest = event;
-    loadEvents();
-  }, camera) : null;
+  const checkin = ctx.me
+    ? createCheckin(
+        () => ctxNow,
+        (event) => {
+          latest = event;
+          loadEvents();
+        },
+        camera,
+        (row) => {
+          pendingRow = row;
+          paint(ctxNow);
+        },
+      )
+    : null;
 
   const progressSlot = h("section", { class: "card" });
   const eventsSlot = h("section", { class: "card stack" });
@@ -51,7 +62,7 @@ export function mount(ctx) {
     if (c.me) {
       fill(progressSlot, progressBlock(c, events));
       checkin.update(c, events);
-      fill(eventsSlot, eventsBlock(events, latest));
+      fill(eventsSlot, eventsBlock(events, latest, pendingRow));
     }
     fill(standingsSlot, h("div", { class: "row between" }, h("h2", null, "Standings"), g.status === "ACTIVE" ? pill("PENDING", "Live") : pill("LOCKED", "Frozen")), standingsTable(c.state, c.meId));
     fill(feedSlot, ledgerTail(c.state, { title: "What just happened" }));
@@ -128,12 +139,25 @@ function progressBlock(ctx, events) {
   );
 }
 
-function eventsBlock(events, latest) {
+function eventsBlock(events, latest, pendingRow) {
   const list = events.slice().sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   return [
     h("h2", null, "Your check-ins"),
-    list.length
-      ? h("ul", { class: "list checkins" }, list.map((e) => eventRow(e, latest && latest.event_id === e.event_id)))
+    list.length || pendingRow
+      ? h(
+          "ul",
+          { class: "list checkins" },
+          pendingRow
+            ? h(
+                "li",
+                { class: "ci", style: { background: "var(--pending-bg)", borderRadius: "10px", padding: "14px" } },
+                h("div", null, h("b", null, `Milestone ${pendingRow.milestone + 1}`), h("span", { class: "muted small" }, `  claimed ${pendingRow.value}, ${pendingRow.kind}`)),
+                h("div", { class: "row" }, pill("PENDING")),
+                h("div", { class: "why-line" }, pendingRow.kind === "log" ? "Recording your log against the rubric." : "Reading your evidence and scoring it by the rubric."),
+              )
+            : null,
+          list.map((e) => eventRow(e, latest && latest.event_id === e.event_id)),
+        )
       : h("p", { class: "muted" }, "No check-ins yet. Your first one is waiting."),
   ];
 }
@@ -165,7 +189,7 @@ export function eventRow(e, highlight) {
   );
 }
 
-function createCheckin(getCtx, onRecorded, camera) {
+function createCheckin(getCtx, onRecorded, camera, onPending) {
   const err = errorLine();
   const select = h("select", { class: "input", "aria-label": "Milestone" });
   const value = h("input", { type: "number", min: "0", step: "any", inputmode: "decimal" });
@@ -267,7 +291,10 @@ function createCheckin(getCtx, onRecorded, camera) {
     data.append("value", value.value);
     if (note.value.trim()) data.append("note", note.value.trim());
     if (evidence) data.append("file", evidence, evidence.name || "evidence");
+    const kind = !evidence ? "log" : evidence.type.startsWith("video/") ? "clip" : "photo";
+    onPending({ milestone: Number(select.value), value: value.value, kind });
     const res = await act(submit, err, "Checking your evidence", () => api.checkin(data));
+    onPending(null);
     if (res && res.event) {
       file.value = "";
       note.value = "";

@@ -34,7 +34,9 @@ async function request(method, path, body) {
   if (!res.ok) {
     const err = data && data.error;
     if (err && err.message) throw new ApiError(err.code || "ERROR", err.message, res.status);
-    const detail = data && typeof data.detail === "string" ? data.detail : `The server answered ${res.status}.`;
+    let detail = `The server answered ${res.status}.`;
+    if (data && typeof data.detail === "string") detail = data.detail;
+    else if (data && Array.isArray(data.detail) && data.detail[0] && data.detail[0].msg) detail = `Check the form: ${data.detail[0].msg}.`;
     throw new ApiError("HTTP_" + res.status, detail, res.status);
   }
   return data;
