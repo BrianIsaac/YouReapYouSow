@@ -291,7 +291,8 @@ def build_runtime(
         "quote": None,
     }
     if purchase is not None:
-        enrollment = settings.reap_enrollment_id
+        # Only the sandbox knows the operator's enrolment; the mock enrols its own test card.
+        enrollment = settings.reap_enrollment_id if settings.reap_backend == "sandbox" else None
         runtime.buyer = PrizeBuyer(
             control,
             purchase,

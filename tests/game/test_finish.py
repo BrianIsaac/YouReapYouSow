@@ -214,3 +214,21 @@ async def test_the_sandbox_without_an_enrolment_refuses_before_any_call(runtime:
     assert failed.error is not None
     assert "REAP_ENROLLMENT_ID" in failed.error
     assert not runtime.control.ledger.events(types=[EventType.OBJECTIVE_CREATED])
+
+
+async def test_the_mock_ignores_a_sandbox_enrolment_in_the_settings(tmp_path: Path) -> None:
+    """A sandbox enrolment id left in .env never reaches the mock's purchase."""
+    settings = Settings.model_validate(
+        {
+            "database_path": tmp_path / "db.sqlite",
+            "snapshot_path": tmp_path / "snap.json",
+            "market_mode": MarketMode.MOCK,
+            "reap_enrollment_id": "dc791bae-f504-4011-ae48-7cd7cafd7a46",
+        }
+    )
+    runtime = build_runtime(settings)
+    try:
+        assert runtime.buyer is not None
+        assert runtime.buyer.enrollment_id is None
+    finally:
+        await runtime.aclose()
