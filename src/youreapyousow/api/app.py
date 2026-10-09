@@ -10,6 +10,7 @@ import json
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
@@ -146,9 +147,16 @@ class Runtime:
             return
         finally:
             await kwal.aclose()
-        if funding.available is not None:
-            self.game.vault_balance = funding.available.value
+        available = funding.available.value if funding.available is not None else Decimal(0)
+        terms = self.game.terms
+        if available >= terms.entry_amount * terms.max_players:
+            self.game.vault_balance = available
             self.game.vault_source = "Kwal vault on Ink Sepolia (test USDC, read at start)"
+        else:
+            self.game.vault_source = (
+                f"The Kwal vault reads {available.quantize(Decimal('0.01'))} test USDC "
+                "(not yet funded); entries are reserved against the configured stand-in balance"
+            )
 
     async def attach(self, app: FastAPI) -> None:
         """Wire the mock's webhook delivery into this app and register its endpoints.

@@ -203,3 +203,14 @@ async def test_no_verified_progress_means_no_winner_and_refunds(runtime: Runtime
     game.tick()
     _clock(runtime).advance(seconds=21)
     assert game.finalize().status == GroupStatus.CANCELLED
+
+
+async def test_the_sandbox_without_an_enrolment_refuses_before_any_call(runtime: Runtime) -> None:
+    """No enrolment on the sandbox: failed with the operator's step named, nothing created."""
+    assert runtime.purchase is not None
+    buyer = PrizeBuyer(runtime.control, runtime.purchase, backend="sandbox", enrollment_id=None)
+    failed = await buyer.buy(ceiling=Decimal("67.50"), winner="Alice", on_step=lambda p: None)
+    assert failed.status == "FAILED"
+    assert failed.error is not None
+    assert "REAP_ENROLLMENT_ID" in failed.error
+    assert not runtime.control.ledger.events(types=[EventType.OBJECTIVE_CREATED])

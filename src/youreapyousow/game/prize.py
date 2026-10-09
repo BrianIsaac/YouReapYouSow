@@ -175,6 +175,16 @@ class PrizeBuyer:
             The purchase: ``PURCHASED`` with the order id, or ``FAILED`` with why.
         """
         state = PrizePurchase(status="BUYING", step="search", backend=self.backend, ceiling=ceiling)
+        if self.backend == "sandbox" and self.enrollment_id is None:
+            failed = state.model_copy(
+                update={
+                    "status": "FAILED",
+                    "error": "No ACTIVE Reap enrolment: the operator completes Reap's hosted "
+                    "card page and sets REAP_ENROLLMENT_ID.",
+                }
+            )
+            on_step(failed)
+            return failed
         on_step(state)
         try:
             return await self._buy(state, ceiling, winner, on_step)
