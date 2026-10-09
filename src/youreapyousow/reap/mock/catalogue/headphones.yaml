@@ -1,0 +1,49 @@
+# Reap's own documented example, a stand-in product for a catalogue neither shape fits.
+#
+# From https://docs.reap.global/agentic-payments/one-time-purchases.md:
+# the product name, the Color option with Black available and Silver not, the variant price
+# 129 and the price range 129 to 149, requiresShipping true, the Standard (5) and Express
+# (13, preselected) shipping options, the offer code SAVE10 and the merchant domain
+# merchant.example from the checkout URL example. The guide shows "<merchant-name>"; the
+# merchant name here is the mock's own. What SAVE10 takes off, the expired SUMMER25, the
+# Silver price and the tax rates are assumptions; Reap's example leaves its 5 of tax out of
+# finalAmount, and this mock adds it (see the module docstring of reap/mock/agentic.py).
+name: headphones
+description: The docs' Sony WH 1000XM5 example from one merchant.
+currency: USD
+default_country: US
+countries:
+  US: {tax_rate: "0.08", tax_included: false, calling_code: "1", region_required: true}
+  SG: {tax_rate: "0.09", tax_included: true, calling_code: "65"}
+  HK: {tax_rate: "0", tax_included: false, calling_code: "852"}
+merchants:
+  - name: Example Merchant
+    domain: merchant.example
+    external_checkout: true
+    ships_to: [US, SG, HK]
+    shipping_options:
+      - id: standard
+        name: Standard
+        price: "5"
+      - id: express
+        name: Express
+        price: "13"
+        selected: true
+    offer_codes:
+      - {code: SAVE10, percent_off: "10"}
+      - {code: SUMMER25, percent_off: "25", expires_at: "2020-09-01T00:00:00Z"}
+    products:
+      - id: prd-sony-wh-1000xm5
+        name: Sony WH 1000XM5 Wireless Headphones
+        description: Wireless noise cancelling over-ear headphones.
+        keywords: [headphone, wireless, noise, cancelling]
+        variants:
+          - id: var_123
+            name: Black
+            options: {Color: Black}
+            price: "129"
+          - id: var_124
+            name: Silver
+            options: {Color: Silver}
+            price: "149"
+            available: false

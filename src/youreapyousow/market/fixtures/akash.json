@@ -1,0 +1,744 @@
+{
+ "availability": {
+  "total": 393,
+  "available": 91
+ },
+ "models": [
+  {
+   "vendor": "nvidia",
+   "model": "a100",
+   "ram": "80Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 1,
+    "available": 1
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 1
+   },
+   "price": {
+    "currency": "USD",
+    "min": 1.33,
+    "max": 1.33,
+    "avg": 1.33,
+    "weightedAverage": 1.33,
+    "med": 1.33
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 1725840.1,
+    "max": 1725840.1,
+    "avg": 1725840.1,
+    "weightedAverage": 1725840.1,
+    "med": 1725840.1
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "a100",
+   "ram": "80Gi",
+   "interface": "SXM4",
+   "availability": {
+    "total": 216,
+    "available": 24
+   },
+   "providerAvailability": {
+    "total": 5,
+    "available": 4
+   },
+   "price": {
+    "currency": "USD",
+    "min": 1.07,
+    "max": 1.91,
+    "avg": 1.61,
+    "weightedAverage": 1.69,
+    "med": 1.84
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 1933756.71,
+    "max": 3464468.42,
+    "avg": 2744883.6,
+    "weightedAverage": 2689263.77,
+    "med": 2836425.67
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "b300",
+   "ram": "288Gi",
+   "interface": "SXM6",
+   "availability": {
+    "total": 16,
+    "available": 0
+   },
+   "providerAvailability": {
+    "total": 2,
+    "available": 0
+   },
+   "price": null,
+   "priceUakt": null
+  },
+  {
+   "vendor": "nvidia",
+   "model": "gtx1050",
+   "ram": "2Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 1,
+    "available": 1
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 1
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.14,
+    "max": 0.14,
+    "avg": 0.14,
+    "weightedAverage": 0.14,
+    "med": 0.14
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 179517.8,
+    "max": 179517.8,
+    "avg": 179517.8,
+    "weightedAverage": 179517.8,
+    "med": 179517.8
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "gtx1070ti",
+   "ram": "8Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 1,
+    "available": 1
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 1
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.14,
+    "max": 0.14,
+    "avg": 0.14,
+    "weightedAverage": 0.14,
+    "med": 0.14
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 179517.8,
+    "max": 179517.8,
+    "avg": 179517.8,
+    "weightedAverage": 179517.8,
+    "med": 179517.8
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "h100",
+   "ram": "80Gi",
+   "interface": "SXM5",
+   "availability": {
+    "total": 68,
+    "available": 23
+   },
+   "providerAvailability": {
+    "total": 4,
+    "available": 4
+   },
+   "price": {
+    "currency": "USD",
+    "min": 2.04,
+    "max": 3.16,
+    "avg": 2.58,
+    "weightedAverage": 2.72,
+    "med": 2.55
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 2653423.79,
+    "max": 4618926.84,
+    "avg": 3677358.66,
+    "weightedAverage": 4150256.09,
+    "med": 3718542.01
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "m4000",
+   "ram": "8Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 1,
+    "available": 0
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 0
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.06,
+    "max": 0.06,
+    "avg": 0.06,
+    "weightedAverage": 0.06,
+    "med": 0.06
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 105895.86,
+    "max": 105895.86,
+    "avg": 105895.86,
+    "weightedAverage": 105895.86,
+    "med": 105895.86
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "p2000",
+   "ram": "5Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 4,
+    "available": 3
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 1
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.36,
+    "max": 0.36,
+    "avg": 0.36,
+    "weightedAverage": 0.36,
+    "med": 0.36
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 468398.03,
+    "max": 468398.03,
+    "avg": 468398.03,
+    "weightedAverage": 468398.03,
+    "med": 468398.03
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "p4",
+   "ram": "8Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 2,
+    "available": 0
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 0
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.03,
+    "max": 0.03,
+    "avg": 0.03,
+    "weightedAverage": 0.03,
+    "med": 0.03
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 60776.77,
+    "max": 60776.77,
+    "avg": 60776.77,
+    "weightedAverage": 60776.77,
+    "med": 60776.77
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "p40",
+   "ram": "24Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 1,
+    "available": 0
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 0
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.08,
+    "max": 0.08,
+    "avg": 0.08,
+    "weightedAverage": 0.08,
+    "med": 0.08
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 147433.02,
+    "max": 147433.02,
+    "avg": 147433.02,
+    "weightedAverage": 147433.02,
+    "med": 147433.02
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "pro6000se",
+   "ram": "96Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 25,
+    "available": 10
+   },
+   "providerAvailability": {
+    "total": 3,
+    "available": 2
+   },
+   "price": {
+    "currency": "USD",
+    "min": 1.49,
+    "max": 2.04,
+    "avg": 1.86,
+    "weightedAverage": 2.02,
+    "med": 2.04
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 1939887.02,
+    "max": 2651712.19,
+    "avg": 2414437.13,
+    "weightedAverage": 2623239.18,
+    "med": 2651712.19
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "pro6000we",
+   "ram": "96Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 1,
+    "available": 1
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 1
+   },
+   "price": {
+    "currency": "USD",
+    "min": 1.44,
+    "max": 1.44,
+    "avg": 1.44,
+    "weightedAverage": 1.44,
+    "med": 1.44
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 1879837.44,
+    "max": 1879837.44,
+    "avg": 1879837.44,
+    "weightedAverage": 1879837.44,
+    "med": 1879837.44
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "rtx3060",
+   "ram": "12Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 1,
+    "available": 1
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 1
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.14,
+    "max": 0.14,
+    "avg": 0.14,
+    "weightedAverage": 0.14,
+    "med": 0.14
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 258243.45,
+    "max": 258243.45,
+    "avg": 258243.45,
+    "weightedAverage": 258243.45,
+    "med": 258243.45
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "rtx3060ti",
+   "ram": "8Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 4,
+    "available": 4
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 1
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.14,
+    "max": 0.14,
+    "avg": 0.14,
+    "weightedAverage": 0.14,
+    "med": 0.14
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 179410.4,
+    "max": 179410.4,
+    "avg": 179410.4,
+    "weightedAverage": 179410.4,
+    "med": 179410.4
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "rtx3090",
+   "ram": "24Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 11,
+    "available": 6
+   },
+   "providerAvailability": {
+    "total": 3,
+    "available": 1
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.09,
+    "max": 0.19,
+    "avg": 0.14,
+    "weightedAverage": 0.17,
+    "med": 0.15
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 116689.26,
+    "max": 271403.37,
+    "avg": 205943.52,
+    "weightedAverage": 249762.92,
+    "med": 229737.93
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "rtx3090ti",
+   "ram": "24Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 1,
+    "available": 0
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 0
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.25,
+    "max": 0.25,
+    "avg": 0.25,
+    "weightedAverage": 0.25,
+    "med": 0.25
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 439650.09,
+    "max": 439650.09,
+    "avg": 439650.09,
+    "weightedAverage": 439650.09,
+    "med": 439650.09
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "rtx4000ada",
+   "ram": "20Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 7,
+    "available": 2
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 1
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.25,
+    "max": 0.25,
+    "avg": 0.25,
+    "weightedAverage": 0.25,
+    "med": 0.25
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 373171.71,
+    "max": 373171.71,
+    "avg": 373171.71,
+    "weightedAverage": 373171.71,
+    "med": 373171.71
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "rtx4000sada",
+   "ram": "20Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 1,
+    "available": 0
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 0
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.14,
+    "max": 0.14,
+    "avg": 0.14,
+    "weightedAverage": 0.14,
+    "med": 0.14
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 212828.32,
+    "max": 212828.32,
+    "avg": 212828.32,
+    "weightedAverage": 212828.32,
+    "med": 212828.32
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "rtx4080",
+   "ram": "16Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 1,
+    "available": 0
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 0
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.15,
+    "max": 0.15,
+    "avg": 0.15,
+    "weightedAverage": 0.15,
+    "med": 0.15
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 213413.77,
+    "max": 213413.77,
+    "avg": 213413.77,
+    "weightedAverage": 213413.77,
+    "med": 213413.77
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "rtx4090",
+   "ram": "24Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 3,
+    "available": 1
+   },
+   "providerAvailability": {
+    "total": 2,
+    "available": 1
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.28,
+    "max": 0.34,
+    "avg": 0.31,
+    "weightedAverage": 0.3,
+    "med": 0.31
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 482389.88,
+    "max": 508015.26,
+    "avg": 495202.57,
+    "weightedAverage": 499473.47,
+    "med": 495202.57
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "rtx5090",
+   "ram": "32Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 10,
+    "available": 0
+   },
+   "providerAvailability": {
+    "total": 2,
+    "available": 0
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.57,
+    "max": 0.71,
+    "avg": 0.64,
+    "weightedAverage": 0.68,
+    "med": 0.64
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 888064.25,
+    "max": 1085371.14,
+    "avg": 986717.7,
+    "weightedAverage": 1045909.76,
+    "med": 986717.7
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "rtx6000",
+   "ram": "24Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 1,
+    "available": 1
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 1
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.22,
+    "max": 0.22,
+    "avg": 0.22,
+    "weightedAverage": 0.22,
+    "med": 0.22
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 287004.55,
+    "max": 287004.55,
+    "avg": 287004.55,
+    "weightedAverage": 287004.55,
+    "med": 287004.55
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "t4",
+   "ram": "16Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 2,
+    "available": 2
+   },
+   "providerAvailability": {
+    "total": 2,
+    "available": 2
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.11,
+    "max": 0.21,
+    "avg": 0.16,
+    "weightedAverage": 0.16,
+    "med": 0.16
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 143941.81,
+    "max": 318424.72,
+    "avg": 231183.27,
+    "weightedAverage": 231183.27,
+    "med": 231183.27
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "v100",
+   "ram": "16Gi",
+   "interface": "SXM2",
+   "availability": {
+    "total": 4,
+    "available": 0
+   },
+   "providerAvailability": {
+    "total": 1,
+    "available": 0
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.26,
+    "max": 0.26,
+    "avg": 0.26,
+    "weightedAverage": 0.26,
+    "med": 0.26
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 394153.23,
+    "max": 394153.23,
+    "avg": 394153.23,
+    "weightedAverage": 394153.23,
+    "med": 394153.23
+   }
+  },
+  {
+   "vendor": "nvidia",
+   "model": "v100",
+   "ram": "32Gi",
+   "interface": "PCIe",
+   "availability": {
+    "total": 10,
+    "available": 10
+   },
+   "providerAvailability": {
+    "total": 2,
+    "available": 2
+   },
+   "price": {
+    "currency": "USD",
+    "min": 0.2,
+    "max": 0.26,
+    "avg": 0.23,
+    "weightedAverage": 0.21,
+    "med": 0.23
+   },
+   "priceUakt": {
+    "currency": "uakt",
+    "min": 260674.28,
+    "max": 392328.45,
+    "avg": 326501.37,
+    "weightedAverage": 287005.11,
+    "med": 326501.37
+   }
+  }
+ ]
+}

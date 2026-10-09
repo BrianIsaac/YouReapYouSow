@@ -1,0 +1,90 @@
+# Shape (a): compute credits and a SaaS plan.
+#
+# Mock data, not a price list: the merchants are fictional (".example" domains) and every
+# price is illustrative. Two merchants sell credits in the same denominations at different
+# landed prices, and the cheaper list price is the dearer landed one, so a gate that
+# decides on finalAmount chooses differently from one that reads the search results:
+#
+#   USD 100 credits, Northwind Cloud   100 + 2.50 service fee = 102.50
+#   USD 100 credits, Kestrel Compute    99 + 4.90 platform fee = 103.90
+#
+# Credits and plans are digital: nothing requires shipping, so a quote needs no address and
+# carries no shipping options. Singapore's tax is included in prices.
+name: compute
+description: GPU compute credits from two merchants, and an inference API plan.
+currency: USD
+default_country: SG
+countries:
+  SG: {tax_rate: "0.09", tax_included: true, calling_code: "65"}
+  US: {tax_rate: "0.08", tax_included: false, calling_code: "1", region_required: true}
+merchants:
+  - name: Northwind Cloud
+    domain: northwind-cloud.example
+    ships_to: [SG, US]
+    additional_charges:
+      - {name: Service fee, amount: "2.50"}
+    products:
+      - id: prd-northwind-gpu-credits
+        name: Northwind GPU Compute Credits
+        description: Prepaid credits for on-demand GPU instances.
+        keywords: [gpu, compute, credit, cloud]
+        default_variant: var-northwind-gpu-credits-100
+        variants:
+          - id: var-northwind-gpu-credits-50
+            name: USD 50 credit
+            options: {Amount: USD 50}
+            price: "50"
+            requires_shipping: false
+          - id: var-northwind-gpu-credits-100
+            name: USD 100 credit
+            options: {Amount: USD 100}
+            price: "100"
+            requires_shipping: false
+          - id: var-northwind-gpu-credits-250
+            name: USD 250 credit
+            options: {Amount: USD 250}
+            price: "250"
+            requires_shipping: false
+
+  - name: Kestrel Compute
+    domain: kestrel-compute.example
+    ships_to: [SG, US]
+    additional_charges:
+      - {name: Platform fee, amount: "4.90"}
+    products:
+      - id: prd-kestrel-gpu-credits
+        name: Kestrel GPU Compute Credits
+        description: Prepaid credits for GPU capacity, billed by the second.
+        keywords: [gpu, compute, credit, cloud]
+        default_variant: var-kestrel-gpu-credits-100
+        variants:
+          - id: var-kestrel-gpu-credits-50
+            name: USD 50 credit
+            options: {Amount: USD 50}
+            price: "49.50"
+            requires_shipping: false
+          - id: var-kestrel-gpu-credits-100
+            name: USD 100 credit
+            options: {Amount: USD 100}
+            price: "99"
+            requires_shipping: false
+          - id: var-kestrel-gpu-credits-250
+            name: USD 250 credit
+            options: {Amount: USD 250}
+            price: "247.50"
+            requires_shipping: false
+      - id: prd-kestrel-inference-plan
+        name: Kestrel Inference API Plan
+        description: Monthly plan for hosted model inference, with a GPU hour allowance.
+        keywords: [inference, api, plan, saas, gpu, compute]
+        variants:
+          - id: var-kestrel-inference-starter
+            name: Starter, monthly
+            options: {Tier: Starter}
+            price: "29"
+            requires_shipping: false
+          - id: var-kestrel-inference-pro
+            name: Pro, monthly
+            options: {Tier: Pro}
+            price: "99"
+            requires_shipping: false

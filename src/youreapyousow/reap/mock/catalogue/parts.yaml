@@ -1,0 +1,112 @@
+# Shape (b): parts a machine buys for its own fix.
+#
+# Mock data, not a price list: the merchants are fictional (".example" domains) and every
+# price is illustrative. Prices are chosen against the illustrative grant of
+# configs/purchase-part.yaml (per purchase 150 USD, approval threshold 120 USD), landed in
+# Singapore with the preselected Standard shipping:
+#
+#   1 TB NVMe, Northwind Components    69 + 8  =  77   allowed, the cheapest landed
+#   1 TB NVMe, Kestrel Parts           64 + 15 =  79   cheaper item, dearer landed
+#   2 TB NVMe, Northwind (equivalent)  99 + 8  = 107   allowed as an approved equivalent
+#   Pro 1 TB NVMe, Kestrel (premium)  179 + 15 = 194   above the cap: the refusal
+#   120 mm fan, Northwind, Premium    129 + 8  = 137   under the cap, above the threshold:
+#                                                      the escalation (Standard is sold out)
+#   650 W power supply, Northwind      89 + 8  =  97
+#
+# Singapore's tax is included in prices, so the landed figure is items plus shipping.
+name: parts
+description: Drives, a fan and a power supply from two merchants, shipped to the site.
+currency: USD
+default_country: SG
+countries:
+  SG: {tax_rate: "0.09", tax_included: true, calling_code: "65"}
+  US: {tax_rate: "0.08", tax_included: false, calling_code: "1", region_required: true}
+merchants:
+  - name: Northwind Components
+    domain: northwind-components.example
+    external_checkout: true
+    ships_to: [SG, US]
+    shipping_options:
+      - id: northwind-standard
+        name: Standard
+        price: "8"
+        selected: true
+        details: {carrier: Northwind Post}
+      - id: northwind-express
+        name: Express
+        price: "18"
+        details: {carrier: Northwind Courier}
+    products:
+      - id: prd-northwind-nvme-1tb
+        name: Northwind 1TB NVMe M.2 2280 SSD
+        description: PCIe 4.0 NVMe solid state drive, M.2 2280 form factor.
+        keywords: [ssd, drive, storage]
+        variants:
+          - id: var-northwind-nvme-1tb
+            name: 1 TB
+            options: {Capacity: 1 TB, Interface: NVMe, Form factor: M.2 2280}
+            price: "69"
+      - id: prd-northwind-nvme-2tb
+        name: Northwind 2TB NVMe M.2 2280 SSD
+        description: PCIe 4.0 NVMe solid state drive, M.2 2280 form factor.
+        keywords: [ssd, drive, storage]
+        variants:
+          - id: var-northwind-nvme-2tb
+            name: 2 TB
+            options: {Capacity: 2 TB, Interface: NVMe, Form factor: M.2 2280}
+            price: "99"
+      - id: prd-northwind-fan-120
+        name: Northwind 120mm Case Fan
+        description: 120 mm chassis fan, 4-pin PWM.
+        keywords: [fan, cooling, chassis]
+        default_variant: var-northwind-fan-120-premium
+        variants:
+          - id: var-northwind-fan-120-standard
+            name: Standard
+            options: {Size: 120 mm, Grade: Standard}
+            price: "19"
+            available: false
+          - id: var-northwind-fan-120-premium
+            name: Premium
+            options: {Size: 120 mm, Grade: Premium}
+            price: "129"
+      - id: prd-northwind-psu-650
+        name: Northwind 650W ATX Power Supply
+        description: 650 W ATX power supply, 80 PLUS Gold.
+        keywords: [psu, power, supply]
+        variants:
+          - id: var-northwind-psu-650
+            name: 650 W
+            options: {Wattage: 650 W, Connector: ATX}
+            price: "89"
+
+  - name: Kestrel Parts
+    domain: kestrel-parts.example
+    ships_to: [SG, US]
+    shipping_options:
+      - id: kestrel-standard
+        name: Standard
+        price: "15"
+        selected: true
+      - id: kestrel-express
+        name: Express
+        price: "25"
+    products:
+      - id: prd-kestrel-nvme-1tb
+        name: Kestrel 1TB NVMe M.2 2280 SSD
+        description: PCIe 3.0 NVMe solid state drive, M.2 2280 form factor.
+        keywords: [ssd, drive, storage]
+        variants:
+          - id: var-kestrel-nvme-1tb
+            name: 1 TB
+            options: {Capacity: 1 TB, Interface: NVMe, Form factor: M.2 2280}
+            price: "64"
+      - id: prd-kestrel-pro-nvme-1tb
+        name: Kestrel Pro 1TB NVMe M.2 2280 SSD
+        description: Enterprise NVMe drive with power-loss protection, M.2 2280 form factor.
+        keywords: [ssd, drive, storage, enterprise]
+        variants:
+          - id: var-kestrel-pro-nvme-1tb
+            name: 1 TB Pro
+            options: {Capacity: 1 TB, Interface: NVMe, Form factor: M.2 2280}
+            price: "179"

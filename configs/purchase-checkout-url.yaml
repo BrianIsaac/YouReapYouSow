@@ -1,0 +1,38 @@
+# The third route: a merchant cart URL quoted as Reap's externalCheckout, one of the
+# three purchase files; PURCHASE_CONFIG names the one in force. Reap offers it only "for
+# merchant domains that Reap has allowlisted for your integration" (one-time-purchases
+# page), so it is used only where Reap has enabled it for the project.
+#
+# Illustrative values: the cart is Reap's own documented example (merchant.example, the
+# Sony WH 1000XM5 in Black, variant var_123) as the mock's headphones catalogue serves
+# it; the merchant name is the mock's own. Every value is replaced for a real merchant.
+purchase:
+  shape: part
+  route: checkout_url
+  external_checkout:
+    merchant: Example Merchant
+    merchant_domain: merchant.example
+    checkout_url: "https://merchant.example/cart/var_123:1"
+  merchants: ["Example Merchant"]
+  email: operator@example.com
+  shipping_address:               # Reap requires one on every external checkout quote
+    first_name: Site
+    last_name: Engineer
+    phone: "+6561234567"
+    address_line1: "1 Example Road"
+    city: Singapore
+    postal_code: "000001"
+    country: SG
+  return_url: "https://example.invalid/checkout/return"   # any HTTPS URI; visited only after a hosted step
+  checkout:
+    simulate_completed_when_allowed: true   # sandbox header for gate-allowed checkouts only
+    poll_every_s: 1
+    poll_deadline_s: 120
+  grant:
+    budget_usd: 500
+    per_purchase_usd: 200
+    daily_usd: 400
+    approval_threshold_usd: 180
+    attempts_per_need: 3
+    quote_margin_s: 15
+    ttl_hours: 4

@@ -1,0 +1,46 @@
+# Shape (b): the machine buys its own fix, one of the three purchase files;
+# PURCHASE_CONFIG names the one in force. Illustrative values: the query, merchants,
+# address and prices fit the mock's bundled parts catalogue; a real catalogue is read
+# with scripts/catalogue_probe.py and the values edited to it.
+#
+# The match is the bill of materials' part or an approved equivalent: each named
+# option of a variant must be one of the accepted values.
+purchase:
+  shape: part
+  route: catalogue
+  search:
+    query: "1TB NVMe M.2 2280 SSD"
+    merchant_preference: null     # or {mode: PREFER, merchant_name: "..."}
+    context: {country: SG, currency: USD}
+    price: {min: "40", max: "200"}
+    availability: AVAILABLE_ONLY
+    limit: 20
+  match:
+    attributes:
+      Capacity: ["1 TB", "2 TB"]
+      Interface: ["NVMe"]
+      Form factor: ["M.2 2280"]
+  merchants: ["Northwind Components", "Kestrel Parts"]
+  quantity: 1
+  email: operator@example.com
+  shipping_address:               # required when a variant requires shipping
+    first_name: Site
+    last_name: Engineer
+    phone: "+6561234567"
+    address_line1: "1 Example Road"
+    city: Singapore
+    postal_code: "000001"
+    country: SG
+  return_url: "https://example.invalid/checkout/return"   # any HTTPS URI; visited only after a hosted step
+  checkout:
+    simulate_completed_when_allowed: true   # sandbox header for gate-allowed checkouts only
+    poll_every_s: 1
+    poll_deadline_s: 120
+  grant:
+    budget_usd: 500
+    per_purchase_usd: 150
+    daily_usd: 300
+    approval_threshold_usd: 120
+    attempts_per_need: 3
+    quote_margin_s: 15
+    ttl_hours: 4

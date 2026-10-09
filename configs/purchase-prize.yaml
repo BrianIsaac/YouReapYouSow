@@ -1,0 +1,41 @@
+# The prize: what the agent buys for the winner, through Reap's Agentic module.
+# PURCHASE_CONFIG names the file in force; this is the default. The merchant scope, the
+# price band and the match keep the agent on the one item the group was promised; the
+# grant's figures are replaced at purchase time by the pool's ceiling (the pool less its
+# disclosed buffer), so the gate decides on the pool, not on this file.
+purchase:
+  shape: part
+  route: catalogue
+  search:
+    query: "Keychron B40 Wireless Keyboard"
+    merchant_preference: {mode: ONLY, merchant_name: "Keychron"}
+    context: {country: SG, currency: USD}
+    price: {min: "45", max: "52"}
+    availability: AVAILABLE_ONLY
+    limit: 10
+  match:
+    attributes:
+      Color: ["Deep Black"]
+  merchants: ["Keychron"]
+  quantity: 1
+  email: prizes@example.com
+  shipping_address:               # the winner's address in a real launch; a demo address tonight
+    first_name: Prize
+    last_name: Winner
+    phone: "+6561234567"
+    address_line1: "1 Example Road"
+    city: Singapore
+    postal_code: "000001"
+    country: SG
+  return_url: "https://example.invalid/prize/return"
+  checkout:
+    simulate_completed_when_allowed: true
+    poll_every_s: 1
+    poll_deadline_s: 90
+  grant:
+    budget_usd: 120
+    per_purchase_usd: 120
+    daily_usd: 120
+    attempts_per_need: 3
+    quote_margin_s: 15
+    ttl_hours: 4

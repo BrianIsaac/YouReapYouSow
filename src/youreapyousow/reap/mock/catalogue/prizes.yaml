@@ -1,0 +1,39 @@
+# The prize drop's item, as the sandbox lists it on 9 October 2026 (merchant Keychron,
+# Keychron B40 Wireless Keyboard, USD 49.99, one option Color: Deep Black). Mock data:
+# the shipping figure is illustrative, chosen so the landed quote sits under a pool of
+# three 30.00 entries less its 10% buffer (81.00): 49.99 + 18.00 = 67.99.
+name: prizes
+description: The prize drop's keyboard, from one merchant, shipped to Singapore.
+currency: USD
+default_country: SG
+countries:
+  SG: {tax_rate: "0.09", tax_included: true, calling_code: "65"}
+merchants:
+  - name: Keychron
+    domain: keychron.example
+    external_checkout: false
+    ships_to: [SG]
+    shipping_options:
+      - id: keychron-standard
+        name: Standard International
+        price: "18"
+        selected: true
+    products:
+      - id: prd-keychron-b40
+        name: Keychron B40 Wireless Keyboard
+        description: Slim wireless keyboard, Bluetooth and 2.4 GHz.
+        keywords: [keychron, keyboard, wireless, b40]
+        variants:
+          - id: var-keychron-b40-deep-black
+            name: Deep Black
+            options: {Color: Deep Black}
+            price: "49.99"
+      - id: prd-keychron-b39
+        name: Keychron B39 Wireless Keyboard
+        description: Wireless keyboard with a numeric pad.
+        keywords: [keychron, keyboard, wireless, b39]
+        variants:
+          - id: var-keychron-b39-deep-black
+            name: Deep Black
+            options: {Color: Deep Black}
+            price: "54.99"

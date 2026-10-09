@@ -1,0 +1,606 @@
+{
+ "data": {
+  "gpuTypes": [
+   {
+    "id": "AMD Instinct MI300X OAM",
+    "displayName": "MI300X",
+    "memoryInGb": 192,
+    "securePrice": 2.39,
+    "communityPrice": 0.5,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "AMD Instinct MI350 OAM",
+    "displayName": "MI350X",
+    "memoryInGb": 294,
+    "securePrice": 5.49,
+    "communityPrice": 0.5,
+    "lowestPrice": {
+     "minimumBidPrice": 0.5,
+     "uninterruptablePrice": 0.5,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA A100 80GB PCIe",
+    "displayName": "A100 PCIe",
+    "memoryInGb": 80,
+    "securePrice": 1.59,
+    "communityPrice": 1.19,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA A100-SXM4-40GB",
+    "displayName": "A100 SXM 40GB",
+    "memoryInGb": 40,
+    "securePrice": 0,
+    "communityPrice": 1,
+    "lowestPrice": {
+     "minimumBidPrice": 1,
+     "uninterruptablePrice": 1,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA A100-SXM4-80GB",
+    "displayName": "A100 SXM",
+    "memoryInGb": 80,
+    "securePrice": 1.59,
+    "communityPrice": 1.39,
+    "lowestPrice": {
+     "minimumBidPrice": 1.39,
+     "uninterruptablePrice": 1.39,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA A40",
+    "displayName": "A40",
+    "memoryInGb": 48,
+    "securePrice": 0.49,
+    "communityPrice": 0.35,
+    "lowestPrice": {
+     "minimumBidPrice": 0.35,
+     "uninterruptablePrice": 0.35,
+     "stockStatus": "Medium"
+    }
+   },
+   {
+    "id": "NVIDIA B200",
+    "displayName": "B200",
+    "memoryInGb": 180,
+    "securePrice": 6.79,
+    "communityPrice": 5.98,
+    "lowestPrice": {
+     "minimumBidPrice": 5.98,
+     "uninterruptablePrice": 5.98,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA B300 SXM6 AC",
+    "displayName": "B300",
+    "memoryInGb": 288,
+    "securePrice": 7.89,
+    "communityPrice": 6.94,
+    "lowestPrice": {
+     "minimumBidPrice": 6.94,
+     "uninterruptablePrice": 6.94,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA B300 SXM6 AC MIG 1g.34gb",
+    "displayName": "B300 MIG 34GB",
+    "memoryInGb": 34,
+    "securePrice": 0.5,
+    "communityPrice": 0.5,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA GeForce RTX 3070",
+    "displayName": "RTX 3070",
+    "memoryInGb": 8,
+    "securePrice": 0,
+    "communityPrice": 0.13,
+    "lowestPrice": {
+     "minimumBidPrice": 0.13,
+     "uninterruptablePrice": 0.13,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA GeForce RTX 3080",
+    "displayName": "RTX 3080",
+    "memoryInGb": 10,
+    "securePrice": 0,
+    "communityPrice": 0.17,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA GeForce RTX 3080 Ti",
+    "displayName": "RTX 3080 Ti",
+    "memoryInGb": 12,
+    "securePrice": 0,
+    "communityPrice": 0.18,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA GeForce RTX 3090",
+    "displayName": "RTX 3090",
+    "memoryInGb": 24,
+    "securePrice": 0.5,
+    "communityPrice": 0.22,
+    "lowestPrice": {
+     "minimumBidPrice": 0.22,
+     "uninterruptablePrice": 0.22,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA GeForce RTX 3090 Ti",
+    "displayName": "RTX 3090 Ti",
+    "memoryInGb": 24,
+    "securePrice": 0.46,
+    "communityPrice": 0.27,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA GeForce RTX 4070 Ti",
+    "displayName": "RTX 4070 Ti",
+    "memoryInGb": 12,
+    "securePrice": 0.5,
+    "communityPrice": 0.19,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA GeForce RTX 4080",
+    "displayName": "RTX 4080",
+    "memoryInGb": 16,
+    "securePrice": 0.5,
+    "communityPrice": 0.27,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA GeForce RTX 4080 SUPER",
+    "displayName": "RTX 4080 SUPER",
+    "memoryInGb": 16,
+    "securePrice": 0.5,
+    "communityPrice": 0.28,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA GeForce RTX 4090",
+    "displayName": "RTX 4090",
+    "memoryInGb": 24,
+    "securePrice": 0.74,
+    "communityPrice": 0.34,
+    "lowestPrice": {
+     "minimumBidPrice": 0.34,
+     "uninterruptablePrice": 0.34,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA GeForce RTX 5080",
+    "displayName": "RTX 5080",
+    "memoryInGb": 16,
+    "securePrice": 0.59,
+    "communityPrice": 0.39,
+    "lowestPrice": {
+     "minimumBidPrice": 0.39,
+     "uninterruptablePrice": 0.39,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA GeForce RTX 5090",
+    "displayName": "RTX 5090",
+    "memoryInGb": 32,
+    "securePrice": 0.99,
+    "communityPrice": 0.69,
+    "lowestPrice": {
+     "minimumBidPrice": 0.69,
+     "uninterruptablePrice": 0.69,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA H100 80GB HBM3",
+    "displayName": "H100 SXM",
+    "memoryInGb": 80,
+    "securePrice": 3.49,
+    "communityPrice": 2.69,
+    "lowestPrice": {
+     "minimumBidPrice": 2.69,
+     "uninterruptablePrice": 2.69,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA H100 NVL",
+    "displayName": "H100 NVL",
+    "memoryInGb": 94,
+    "securePrice": 3.19,
+    "communityPrice": 2.59,
+    "lowestPrice": {
+     "minimumBidPrice": 2.59,
+     "uninterruptablePrice": 2.59,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA H100 PCIe",
+    "displayName": "H100 PCIe",
+    "memoryInGb": 80,
+    "securePrice": 2.89,
+    "communityPrice": 1.99,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA H200",
+    "displayName": "H200 SXM",
+    "memoryInGb": 141,
+    "securePrice": 4.59,
+    "communityPrice": 3.59,
+    "lowestPrice": {
+     "minimumBidPrice": 3.59,
+     "uninterruptablePrice": 3.59,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA H200 NVL",
+    "displayName": "H200 NVL",
+    "memoryInGb": 143,
+    "securePrice": 3.79,
+    "communityPrice": 0.5,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA L4",
+    "displayName": "L4",
+    "memoryInGb": 24,
+    "securePrice": 0.49,
+    "communityPrice": 0.44,
+    "lowestPrice": {
+     "minimumBidPrice": 0.44,
+     "uninterruptablePrice": 0.44,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA L40",
+    "displayName": "L40",
+    "memoryInGb": 48,
+    "securePrice": 0.82,
+    "communityPrice": 0.69,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA L40S",
+    "displayName": "L40S",
+    "memoryInGb": 48,
+    "securePrice": 1.09,
+    "communityPrice": 0.79,
+    "lowestPrice": {
+     "minimumBidPrice": 0.79,
+     "uninterruptablePrice": 0.79,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX 2000 Ada Generation",
+    "displayName": "RTX 2000 Ada",
+    "memoryInGb": 16,
+    "securePrice": 0.24,
+    "communityPrice": 0.5,
+    "lowestPrice": {
+     "minimumBidPrice": 0.5,
+     "uninterruptablePrice": 0.5,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX 4000 Ada Generation",
+    "displayName": "RTX 4000 Ada",
+    "memoryInGb": 20,
+    "securePrice": 0.28,
+    "communityPrice": 0.2,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA RTX 4000 SFF Ada Generation",
+    "displayName": "RTX 4000 Ada SFF",
+    "memoryInGb": 20,
+    "securePrice": 0.44,
+    "communityPrice": 0.18,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA RTX 5000 Ada Generation",
+    "displayName": "RTX 5000 Ada",
+    "memoryInGb": 32,
+    "securePrice": 0.83,
+    "communityPrice": 0.49,
+    "lowestPrice": {
+     "minimumBidPrice": 0.49,
+     "uninterruptablePrice": 0.49,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX 6000 Ada Generation",
+    "displayName": "RTX 6000 Ada",
+    "memoryInGb": 48,
+    "securePrice": 0.84,
+    "communityPrice": 0.74,
+    "lowestPrice": {
+     "minimumBidPrice": 0.74,
+     "uninterruptablePrice": 0.74,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX A2000",
+    "displayName": "RTX A2000",
+    "memoryInGb": 6,
+    "securePrice": 0.5,
+    "communityPrice": 0.12,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA RTX A4000",
+    "displayName": "RTX A4000",
+    "memoryInGb": 16,
+    "securePrice": 0.25,
+    "communityPrice": 0.17,
+    "lowestPrice": {
+     "minimumBidPrice": 0.17,
+     "uninterruptablePrice": 0.17,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX A4500",
+    "displayName": "RTX A4500",
+    "memoryInGb": 20,
+    "securePrice": 0.25,
+    "communityPrice": 0.19,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "NVIDIA RTX A5000",
+    "displayName": "RTX A5000",
+    "memoryInGb": 24,
+    "securePrice": 0.27,
+    "communityPrice": 0.16,
+    "lowestPrice": {
+     "minimumBidPrice": 0.16,
+     "uninterruptablePrice": 0.16,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX A6000",
+    "displayName": "RTX A6000",
+    "memoryInGb": 48,
+    "securePrice": 0.53,
+    "communityPrice": 0.33,
+    "lowestPrice": {
+     "minimumBidPrice": 0.33,
+     "uninterruptablePrice": 0.33,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX PRO 4000 Blackwell",
+    "displayName": "RTX PRO 4000",
+    "memoryInGb": 24,
+    "securePrice": 0.57,
+    "communityPrice": 0.5,
+    "lowestPrice": {
+     "minimumBidPrice": 0.5,
+     "uninterruptablePrice": 0.5,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX PRO 4500 Blackwell",
+    "displayName": "RTX PRO 4500",
+    "memoryInGb": 32,
+    "securePrice": 0.72,
+    "communityPrice": 0.34,
+    "lowestPrice": {
+     "minimumBidPrice": 0.34,
+     "uninterruptablePrice": 0.34,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX PRO 4500 Blackwell Server Edition",
+    "displayName": "RTX PRO 4500 SE",
+    "memoryInGb": 32,
+    "securePrice": 0.72,
+    "communityPrice": 0.5,
+    "lowestPrice": {
+     "minimumBidPrice": 0.5,
+     "uninterruptablePrice": 0.5,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX PRO 5000 Blackwell",
+    "displayName": "RTX PRO 5000",
+    "memoryInGb": 48,
+    "securePrice": 0.96,
+    "communityPrice": 0.82,
+    "lowestPrice": {
+     "minimumBidPrice": 0.82,
+     "uninterruptablePrice": 0.82,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
+    "displayName": "RTX PRO 6000 MaxQ",
+    "memoryInGb": 96,
+    "securePrice": 0.5,
+    "communityPrice": 1.64,
+    "lowestPrice": {
+     "minimumBidPrice": 1.64,
+     "uninterruptablePrice": 1.64,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "displayName": "RTX PRO 6000",
+    "memoryInGb": 96,
+    "securePrice": 2.09,
+    "communityPrice": 1.69,
+    "lowestPrice": {
+     "minimumBidPrice": 1.69,
+     "uninterruptablePrice": 1.69,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb",
+    "displayName": "PRO 6000 MIG 24GB",
+    "memoryInGb": 24,
+    "securePrice": 0.59,
+    "communityPrice": 0.5,
+    "lowestPrice": {
+     "minimumBidPrice": 0.5,
+     "uninterruptablePrice": 0.5,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 2g.48gb",
+    "displayName": "PRO 6000 MIG 48GB",
+    "memoryInGb": 48,
+    "securePrice": 1.09,
+    "communityPrice": 1,
+    "lowestPrice": {
+     "minimumBidPrice": 1,
+     "uninterruptablePrice": 1,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "displayName": "RTX PRO 6000 WK",
+    "memoryInGb": 96,
+    "securePrice": 2.19,
+    "communityPrice": 1.69,
+    "lowestPrice": {
+     "minimumBidPrice": 1.69,
+     "uninterruptablePrice": 1.69,
+     "stockStatus": "Low"
+    }
+   },
+   {
+    "id": "Tesla V100-PCIE-16GB",
+    "displayName": "Tesla V100",
+    "memoryInGb": 16,
+    "securePrice": 0,
+    "communityPrice": 0.19,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "Tesla V100-SXM2-16GB",
+    "displayName": "V100 SXM2",
+    "memoryInGb": 16,
+    "securePrice": 0,
+    "communityPrice": 0.23,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   },
+   {
+    "id": "unknown",
+    "displayName": "unknown",
+    "memoryInGb": 0,
+    "securePrice": 0,
+    "communityPrice": 0,
+    "lowestPrice": {
+     "minimumBidPrice": null,
+     "uninterruptablePrice": null,
+     "stockStatus": null
+    }
+   }
+  ]
+ }
+}

@@ -1,0 +1,42 @@
+# Shape (a): compute, credits or SaaS, one of the three purchase files; PURCHASE_CONFIG
+# names the one in force and this one is the default. Illustrative values: the query,
+# merchants and prices fit the mock's bundled compute catalogue; a real catalogue is read
+# with scripts/catalogue_probe.py and the values edited to it.
+#
+# The match reads the credit's value from its Amount option: it must cover the
+# estimated lease (the need's estimate: the node the live market prices, for the
+# scenario's lease of one hour, plus 10% headroom) and be no more than max_multiple
+# times it. Credits come in fixed amounts far above an hour of a GPU node (the mock's
+# smallest is 50 USD; the fixture market's cheapest 24 GB node is 0.07 USD an hour), so
+# the ceiling is 1000 hours' worth, about six weeks of the extra node: never a year to
+# fix an hour. Tune it against the real catalogue and prices.
+purchase:
+  shape: compute
+  route: catalogue
+  search:
+    query: "GPU compute credits"
+    merchant_preference: null
+    context: {country: SG, currency: USD}
+    availability: AVAILABLE_ONLY
+    limit: 20
+  match:
+    value_from: {option: Amount}
+    covers_estimate: true
+    max_multiple: 1000
+  merchants: ["Northwind Cloud", "Kestrel Compute"]
+  quantity: 1
+  email: operator@example.com
+  shipping_address: null          # credits ship nowhere; set one if the item requires shipping
+  return_url: "https://example.invalid/checkout/return"   # any HTTPS URI; visited only after a hosted step
+  checkout:
+    simulate_completed_when_allowed: true   # sandbox header for gate-allowed checkouts only
+    poll_every_s: 1
+    poll_deadline_s: 120
+  grant:
+    budget_usd: 300
+    per_purchase_usd: 150
+    daily_usd: 300
+    approval_threshold_usd: 120
+    attempts_per_need: 3
+    quote_margin_s: 15
+    ttl_hours: 4
