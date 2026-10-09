@@ -984,7 +984,7 @@ class GameService:
         for original in (e for e in events if e.supersedes is None):
             history = [original] + [e for e in events if e.supersedes == original.event_id]
             latest = history[-1]
-            delta = original.delta if latest.state == ScoreState.VERIFIED else 0
+            delta = sum(e.delta for e in history)
             current = original.model_copy(
                 update={"state": latest.state, "delta": delta, "reason": latest.reason}
             )
@@ -1034,18 +1034,38 @@ class GameService:
             raise GameError("DISPUTE_WINDOW_CLOSED", "Disputes are taken only in the window.")
         who = self.player(player_id).record
         original = self._original(event_id)
-        if effective_states(self.score_events()).get(original.event_id) != ScoreState.VERIFIED:
-            raise GameError("NOT_DISPUTABLE", "Only a verified check-in can be disputed.")
+        state = effective_states(self.score_events()).get(original.event_id)
+        why = reason.strip()[:200] or "no reason given"
+        if state == ScoreState.VERIFIED:
+            text = f"Disputed by {who.name}: {why}"
+        elif state == ScoreState.REJECTED and original.participant_id == who.id:
+            text = f"Appealed by {who.name}: {why}"
+        else:
+            raise GameError(
+                "NOT_DISPUTABLE",
+                "Dispute another player's verified check-in, or appeal your own rejected one.",
+            )
         return self._supersede(
             original,
             ScoreState.DISPUTED,
-            -original.delta,
-            f"Disputed by {who.name}: {reason.strip()[:200] or 'no reason given'}",
+            -self._net(original),
+            text,
             EventType.SCORE_DISPUTED,
         )
 
+    def _net(self, original: ScoreEvent) -> int:
+        return sum(
+            e.delta for e in self.score_events() if original.event_id in (e.event_id, e.supersedes)
+        )
+
+    def _points(self, original: ScoreEvent) -> int:
+        contract = self.player(original.participant_id).record.contract
+        if contract is None:
+            return 0
+        return contract.milestones[original.milestone].max_points
+
     def review(self, event_id: str, *, reinstate: bool) -> ScoreEvent:
-        """Resolve a disputed check-in: reinstate its points or uphold the dispute.
+        """Resolve a disputed check-in: it counts (its milestone's points) or it does not.
 
         Args:
             event_id: The disputed check-in.
@@ -1062,19 +1082,20 @@ class GameService:
         original = self._original(event_id)
         if effective_states(self.score_events()).get(original.event_id) != ScoreState.DISPUTED:
             raise GameError("NOT_DISPUTED", "That check-in is not disputed.")
+        net = self._net(original)
         if reinstate:
             return self._supersede(
                 original,
                 ScoreState.VERIFIED,
-                original.delta,
-                "Reviewed: the check-in stands.",
+                self._points(original) - net,
+                "Reviewed: the check-in counts.",
                 EventType.SCORE_REVIEWED,
             )
         return self._supersede(
             original,
             ScoreState.REJECTED,
-            0,
-            "Reviewed: the dispute is upheld.",
+            -net,
+            "Reviewed: the check-in does not count.",
             EventType.SCORE_REVIEWED,
         )
 

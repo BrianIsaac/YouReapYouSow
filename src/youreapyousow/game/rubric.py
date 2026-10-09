@@ -61,7 +61,8 @@ RUBRIC_V1 = Rubric(
         "A photo is read by a vision model; its reading is advisory and shown beside the "
         "check-in. The rubric decides the points.",
         "The same file twice is rejected; one check-in per player every 10 seconds.",
-        "A disputed check-in's points are withheld until a reviewer reinstates them.",
+        "A disputed check-in's points are withheld until a reviewer decides; a player may "
+        "appeal their own rejected check-in the same way.",
         f"Tie-break: {TIE_BREAK}",
     ),
     tie_break=TIE_BREAK,
@@ -103,7 +104,8 @@ def effective_states(events: list[ScoreEvent]) -> dict[str, ScoreState]:
 def standings(players: list[Player], events: list[ScoreEvent]) -> list[Standing]:
     """Compute the leaderboard from the score events alone.
 
-    A check-in counts its points while its state is ``VERIFIED``. Ranked by the published
+    A player's score is the sum of every score event's points: a check-in's, a dispute
+    withholding them, a review restoring or awarding them. Ranked by the published
     tie-break: higher verified score, then the earlier last verified check-in, then seat.
 
     Args:
@@ -118,11 +120,13 @@ def standings(players: list[Player], events: list[ScoreEvent]) -> list[Standing]
     milestones: dict[str, int] = {p.id: 0 for p in players}
     last: dict[str, datetime | None] = {p.id: None for p in players}
     for event in events:
+        if event.participant_id in score:
+            score[event.participant_id] += event.delta
+    for event in events:
         if event.supersedes is not None or states.get(event.event_id) != ScoreState.VERIFIED:
             continue
         if event.participant_id not in score:
             continue
-        score[event.participant_id] += event.delta
         milestones[event.participant_id] += 1
         previous = last[event.participant_id]
         last[event.participant_id] = event.at if previous is None else max(previous, event.at)

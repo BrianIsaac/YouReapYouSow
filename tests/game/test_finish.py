@@ -262,3 +262,30 @@ async def test_an_inactive_sandbox_enrolment_buys_on_the_mock_and_says_so(
     assert bought.note is not None
     assert "not ACTIVE" in bought.note
     assert all(s.note == bought.note for s in seen)
+
+
+async def test_a_player_appeals_a_rejected_check_in_and_a_review_awards_it(
+    runtime: Runtime,
+) -> None:
+    """Ben's rejected run, appealed and reviewed: the milestone's 15 points, scored once."""
+    game = runtime.game
+    ids = [game.join(n).id for n in ("Alice", "Ben", "Chloe")]
+    for pid, draft in zip(ids, DRAFTS, strict=True):
+        game.record_intake(pid, "goal", CoachTurn("ok", draft, "fake"))
+        game.lock_contract(pid)
+    for pid in ids:
+        game.accept(pid)
+    _to_start(runtime)
+    rejected = game.checkin(ids[1], milestone=0, value=Decimal(0), evidence=None)
+    assert rejected.state == ScoreState.REJECTED
+    _clock(runtime).advance(seconds=4 * WEEK + 1)
+    game.tick()
+    with pytest.raises(GameError) as other:
+        game.dispute(ids[0], rejected.event_id, "not mine to appeal")
+    assert other.value.code == "NOT_DISPUTABLE"
+    game.dispute(ids[1], rejected.event_id, "my watch did not sync")
+    game.review(rejected.event_id, reinstate=True)
+    board = standings(game.players(), game.score_events())
+    assert (board[0].name, board[0].score, board[0].verified_milestones) == ("Ben", 15, 1)
+    current, history = game.checkins()[0]
+    assert (current.state, current.delta, len(history)) == (ScoreState.VERIFIED, 15, 3)
