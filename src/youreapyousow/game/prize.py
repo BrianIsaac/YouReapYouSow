@@ -296,6 +296,7 @@ class PrizeBuyer:
             rationale=f"The prize promised to the group, landed at {final}, within the pool's "
             f"ceiling of {ceiling}.",
             options_considered=[q.id for q in quotes],
+            on_behalf_of=winner,
         )
         gate = {
             "disposition": decision.disposition.value,

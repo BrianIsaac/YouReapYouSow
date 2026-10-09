@@ -335,6 +335,7 @@ class AuthorityGate:
         options_considered: list[str],
         quantity: int = 1,
         currency: str = BUDGET_CURRENCY,
+        on_behalf_of: str | None = None,
     ) -> tuple[PurchaseIntent, PolicyDecision]:
         """Hold a proposed purchase and decide it.
 
@@ -351,6 +352,7 @@ class AuthorityGate:
             options_considered: Keys of every offer or variant the agent compared.
             quantity: How many, which must match the quote.
             currency: The amount's currency, which must match the quote.
+            on_behalf_of: Who the purchase is for, named on the ledger; never decided on.
 
         Returns:
             The intent in its decided state, and the decision.
@@ -379,6 +381,8 @@ class AuthorityGate:
             "rationale": rationale,
             "options_considered": list(options_considered),
         }
+        if on_behalf_of is not None:
+            payload["on_behalf_of"] = on_behalf_of
         if intent.need_id is not None:
             refs["need"] = intent.need_id
             payload |= {

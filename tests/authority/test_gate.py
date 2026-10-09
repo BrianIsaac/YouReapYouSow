@@ -108,6 +108,26 @@ def test_propose_allows_and_ledger_records_intent_then_decision(
     assert decided.payload["rule"] == "all_rules_passed"
 
 
+def test_propose_names_who_the_purchase_is_for_on_the_ledger_only(
+    gate: AuthorityGate, repos: Repositories, ledger: Ledger
+) -> None:
+    """``on_behalf_of`` lands in the proposal's payload and changes no decision."""
+    intent, decision = gate.propose(
+        objective_id="obj_1",
+        quote_id=_quote(repos).id,
+        provider="vast",
+        offer_id="52727526",
+        amount_usd=Decimal("1.46"),
+        rationale="cheapest",
+        options_considered=["vast:52727526"],
+        on_behalf_of="Alice",
+    )
+    assert decision.disposition == Disposition.ALLOW
+    proposed = ledger.events(types=[EventType.PURCHASE_PROPOSED])[0]
+    assert proposed.subject_id == intent.id
+    assert proposed.payload["on_behalf_of"] == "Alice"
+
+
 def test_refused_proposal_is_never_claimable(gate: AuthorityGate, repos: Repositories) -> None:
     """A refused intent cannot be claimed, so no money can move for it."""
     intent = _propose(gate, _quote(repos), amount_usd=Decimal("9.99"))

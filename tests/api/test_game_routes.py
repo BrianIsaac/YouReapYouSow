@@ -240,7 +240,7 @@ async def test_finalize_buys_the_prize_and_the_state_shows_the_order(running: Ru
     assert "Authority gate on the proposal: allow (all_rules_passed)." in summaries
     assert "Authority gate at the claim: allow (all_rules_passed)." in summaries
     assert "Reap quoted Keychron: 57.49 USD landed in Singapore." in summaries
-    assert "The agent proposed buying at 57.49 USD." in summaries
+    assert "The agent proposed buying the prize for Alice at 57.49 USD." in summaries
 
 
 async def test_the_score_events_and_the_ledger_read_back_for_the_screen(running: Running) -> None:

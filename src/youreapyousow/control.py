@@ -1262,6 +1262,7 @@ class ControlPlane:
         options_considered: list[str],
         quantity: int = 1,
         currency: str = BUDGET_CURRENCY,
+        on_behalf_of: str | None = None,
     ) -> tuple[PurchaseIntent, PolicyDecision]:
         """Propose buying a quote, restating the exact action; the gate decides.
 
@@ -1275,6 +1276,7 @@ class ControlPlane:
             options_considered: Keys of the variants or offers compared.
             quantity: How many, as the agent understands it.
             currency: The amount's currency, as the agent understands it.
+            on_behalf_of: Who the purchase is for, named on the ledger; never decided on.
 
         Returns:
             The intent and the gate's decision.
@@ -1293,6 +1295,7 @@ class ControlPlane:
             options_considered=options_considered,
             quantity=quantity,
             currency=currency,
+            on_behalf_of=on_behalf_of,
         )
 
     async def execute_purchase(self, intent_id: str) -> PurchaseIntent:
