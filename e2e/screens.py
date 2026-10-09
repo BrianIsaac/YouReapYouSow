@@ -14,6 +14,12 @@ from playwright.sync_api import ConsoleMessage, sync_playwright
 from probe import probe_404
 
 WIDTHS = {"laptop": (1440, 900), "phone": (390, 844)}
+# Blocks hide their overflow, so text too wide for one would be cut off silently.
+CLIPPED_JS = """
+[...document.querySelectorAll('.block, .card, .winner')]
+  .filter((b) => b.scrollWidth > b.clientWidth + 1)
+  .map((b) => (b.innerText || '').trim().slice(0, 60))
+"""
 ROUTES = ("drops", "drop", "join", "coach", "agreement", "challenge", "result")
 
 
@@ -61,6 +67,9 @@ def shoot(  # noqa: PLR0917 - each argument is one plain option
                 )
                 if overflow > 0:
                     errors.append(f"{label} {route}: page scrolls sideways by {overflow}px")
+                clipped = page.evaluate(CLIPPED_JS)
+                for text in clipped:
+                    errors.append(f"{label} {route}: content clipped in a block: {text}")
                 page.screenshot(path=str(out / f"{tag}-{route}-{label}.png"), full_page=True)
             context.close()
         browser.close()
