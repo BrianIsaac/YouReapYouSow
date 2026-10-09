@@ -480,3 +480,4 @@ td.r, th.r { text-align: right; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+@media (min-width: 900px) { .p-seats .seat-ring { width: 70px; height: 70px; font-size: 1.9rem; } }
