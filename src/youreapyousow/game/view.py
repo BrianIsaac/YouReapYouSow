@@ -281,7 +281,7 @@ def summarise(event: LedgerEvent, names: dict[str, str]) -> str:  # noqa: PLR091
         case EventType.CATALOGUE_VARIANT_RESOLVED:
             return "Variant resolved."
         case EventType.PURCHASE_PROPOSED:
-            return f"The agent proposed buying for {p.get('amount')}."
+            return f"The agent proposed buying at {p.get('amount_usd')} USD."
         case EventType.PURCHASE_CLAIMED:
             return "Purchase claimed once, under an idempotency key."
         case EventType.CHECKOUT_CREATED:
