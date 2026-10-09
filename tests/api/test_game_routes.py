@@ -395,3 +395,23 @@ async def test_finalize_waits_on_approval_and_a_poll_records_the_order(running: 
     assert state["group"]["status"] == "FULFILLED"
     summaries = [e["summary"] for e in state["ledger_tail"]]
     assert any(s.startswith("Bought for Alice: order ") for s in summaries)
+
+
+async def test_retry_reopens_a_checkout_after_the_page_expired(running: Running) -> None:
+    """The page expired unused: FAILED on a poll, then a fresh checkout waits again."""
+    http = running.http
+    early = await http.post("/api/drops/keychron-b40/purchase/retry", json={})
+    assert early.json()["error"]["code"] == "WRONG_STATE"
+    purchase = await _finalised_awaiting(running)
+    open_page = await http.post("/api/drops/keychron-b40/purchase/retry", json={})
+    assert open_page.json()["error"]["code"] == "PURCHASE_IN_PROGRESS"
+    running.clock.advance(seconds=15 * 60 + 1)
+    expired = (await http.get("/api/state")).json()["result"]["purchase"]
+    assert expired["status"] == "FAILED"
+    assert "expired" in expired["error"]
+    answer = (await http.post("/api/drops/keychron-b40/purchase/retry", json={})).json()
+    again = answer["result"]["purchase"]
+    assert again["status"] == "AWAITING_APPROVAL", again["error"]
+    assert again["checkout_id"] != purchase["checkout_id"]
+    assert again["gate"]["disposition"] == "allow"
+    assert answer["state"]["group"]["status"] == "FINALIZED"

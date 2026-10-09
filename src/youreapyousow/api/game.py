@@ -635,3 +635,55 @@ async def finalize(request: Request, drop_id: str | None = None) -> JSONResponse
         players = drop.service.players()
         body = None if group.result is None else result_view(group.result, players)
         return JSONResponse({"result": body, "state": state_of(drop)})
+
+
+@router.post("/purchase/retry")
+@router.post("/drops/{drop_id}/purchase/retry")
+async def retry_purchase(request: Request, drop_id: str | None = None) -> JSONResponse:
+    """Open a fresh checkout once the last one ended unbought, its approval page expired.
+
+    The same gate decides on a fresh quote, under a new intent and idempotency key; a
+    last checkout that completed after all is recorded instead of paying twice.
+
+    Args:
+        request: The request.
+        drop_id: The drop; the featured drop when None.
+
+    Returns:
+        The result with the purchase, and the state.
+    """
+    runtime = runtime_of(request)
+    drop = drop_of(runtime, drop_id)
+    await follow_purchase(runtime, drop)
+    async with runtime.game_lock:
+        drop.service.tick()
+        group = drop.service.group()
+        result = group.result
+        previous = result.purchase if result is not None else None
+        if group.status != GroupStatus.FINALIZED or result is None or previous is None:
+            return refused(GameError("WRONG_STATE", "There is no unfinished purchase to retry."))
+        if previous.status == "BUYING":
+            return refused(GameError("PURCHASE_IN_PROGRESS", "The agent is already buying."))
+        if previous.status == "AWAITING_APPROVAL":
+            return refused(
+                GameError(
+                    "PURCHASE_IN_PROGRESS", "The approval page is still open for the card holder."
+                )
+            )
+        winner = next(s for s in result.standings if s.player_id == result.winner_id)
+        ceiling = drop.service.pool().ceiling
+        drop.service.purchase_progress(
+            PrizePurchase(status="BUYING", step="search", backend=drop.buyer.backend)
+        )
+    bought = await drop.buyer.retry(
+        previous,
+        ceiling=ceiling,
+        winner=winner.name,
+        now=drop.service.clock(),
+        on_step=drop.service.purchase_progress,
+    )
+    async with runtime.game_lock:
+        group = drop.service.record_purchase(bought)
+        players = drop.service.players()
+        body = None if group.result is None else result_view(group.result, players)
+        return JSONResponse({"result": body, "state": state_of(drop)})
