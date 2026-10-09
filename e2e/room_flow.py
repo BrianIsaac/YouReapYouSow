@@ -244,9 +244,11 @@ def run(base: str, out: Path, stop_after: str, drop: str, lead_s: float | None) 
         finish = alice.get_by_role("button", name="Name the winner and buy the prize")
         expect(finish).to_be_enabled(timeout=120000)
         finish.click()
-        expect(alice.locator(".order-id")).to_be_visible(timeout=120000)
+        # On the sandbox the purchase ends on the card holder's approval page, not an order.
+        outcome = ".order-id, .approval .qr"
+        expect(alice.locator(outcome).first).to_be_visible(timeout=120000)
         room.shot(alice, "07-result-laptop")
-        expect(ben.locator(".order-id")).to_be_visible(timeout=8000)
+        expect(ben.locator(outcome).first).to_be_visible(timeout=8000)
         room.shot(ben, "07-result-phone")
 
         time.sleep(0.5)
