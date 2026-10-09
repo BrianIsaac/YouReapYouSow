@@ -113,14 +113,19 @@ function build(ctx, ui) {
   ];
 }
 
+// The winner's name rises in once, not on every repaint.
+let risenFor = null;
+
 function winnerBlock(state, result) {
+  const rise = risenFor !== result.winner.player_id;
+  risenFor = result.winner.player_id;
   return h(
     "section",
     { class: "winner", "aria-label": "Winner" },
     h(
       "div",
       null,
-      h("div", { class: "name" }, result.winner.name),
+      h("div", { class: `name ${rise ? "rise" : ""}`.trim() }, result.winner.name),
       h("p", { class: "what" }, `wins the ${state.prize ? state.prize.name : "prize"}, bought by the agent from the pool.`),
     ),
     h("div", { class: "score-line" }, result.winner.score, h("small", null, "verified points")),

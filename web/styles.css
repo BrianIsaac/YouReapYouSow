@@ -379,7 +379,8 @@ td.r, th.r { text-align: right; }
   background-image: radial-gradient(circle at 100% 0%, rgba(14, 165, 233, 0.55), transparent 55%);
 }
 @media (min-width: 900px) { .winner { padding: var(--space-5); grid-template-columns: 1fr auto; align-items: end; } }
-.winner .name { font-size: clamp(5rem, 22vw, 12rem); line-height: 0.8; overflow-wrap: anywhere; animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.winner .name { font-size: clamp(5rem, 22vw, 12rem); line-height: 0.8; overflow-wrap: anywhere; }
+.winner .name.rise { animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .winner .what { font-size: var(--s1); font-weight: 700; max-width: 32ch; margin-top: var(--space-3); }
 .winner .score-line { font-family: var(--display); font-weight: 900; font-stretch: 62%; font-size: var(--s5); line-height: 0.88; }
 .winner .score-line small { display: block; font-family: var(--body); font-stretch: 100%; font-size: var(--s-1); font-weight: 700; }
