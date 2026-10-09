@@ -35,7 +35,7 @@ function approvalLapsed(p) {
 }
 
 const BACKEND_LABEL = {
-  sandbox: "Reap sandbox, Agentic module",
+  sandbox: "Reap sandbox, Agentic module: test charges only",
   kwal: "Kwal",
   mock: "Local mock of Reap, not the real service",
 };
@@ -178,7 +178,7 @@ function finishBlock(ctx, ui) {
       : h("p", { class: "lead" }, "Freezing the standings."),
     ui.err,
     button,
-    h("p", { class: "small muted" }, "The agent quotes the prize, checks the landed amount against the pool's ceiling, then checks out. It can take up to a minute."),
+    h("p", { class: "small muted" }, "The agent quotes the prize, checks the landed amount against the pool's ceiling, then checks out. It can take up to a minute. On Reap's sandbox the card holder then approves the test charge on their phone; no real money moves."),
   );
 }
 

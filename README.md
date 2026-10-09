@@ -59,14 +59,22 @@ curl -s -X POST localhost:8000/api/drops/keychron-b40/reset -H 'content-type: ap
 ```
 
 Open `http://localhost:8000/`. With `REAP_BACKEND=sandbox` and an ACTIVE
-`REAP_ENROLLMENT_ID`, the featured prize is charged on the sandbox; while the enrolment is
-not ACTIVE (the sandbox refuses any checkout without one), the agent buys on the local mock
-through the same gate and says so on the result.
+`REAP_ENROLLMENT_ID`, the featured prize is a test charge on the sandbox, never a real one;
+while the enrolment is not ACTIVE (the sandbox refuses any checkout without one), the agent
+buys on the local mock through the same gate and says so on the result.
+
+On the sandbox the checkout waits on the card holder: Reap answers it with a hosted approval
+page (valid 15 minutes, single use) that asks for the passkey on the card holder's own
+phone. The purchase reads `AWAITING_APPROVAL`, the result screen shows the page as a QR code
+with its countdown, and every poll of the state re-reads the checkout until the order lands
+or the page expires. After an expiry, `POST /api/drops/{id}/purchase/retry` opens a fresh
+checkout on a fresh quote through the same gate.
 
 ## The API
 
 `GET /api/state` is what the room screen polls; the routes under `/api` join, talk to the
-coach, edit and lock a contract, accept, check in, dispute, and finalise.
+coach, edit and lock a contract, accept, check in, dispute, finalise, and reopen a purchase
+whose approval page expired.
 `GET /api/ledger` and `GET /api/events` read the ledger and the score events back.
 
 ## What is inside
