@@ -426,7 +426,7 @@ class PrizeBuyer:
         return purchase.model_copy(
             update={
                 "status": "FAILED",
-                "step": "reading",
+                "step": "approval",
                 "error": f"The checkout ended {intent.state.value} before the order was placed.",
             }
         )

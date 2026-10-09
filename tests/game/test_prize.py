@@ -123,6 +123,7 @@ async def test_an_expired_checkout_fails_and_the_group_stays_final(runtime: Runt
     _clock(runtime).advance(seconds=(waiting.approval_expires_at - _clock(runtime)()).seconds + 1)
     failed = await buyer.follow(waiting, now=_clock(runtime)())
     assert failed.status == "FAILED"
+    assert failed.step == "approval"
     assert failed.error is not None
     assert "expired" in failed.error
     group = runtime.game.record_purchase(failed)
