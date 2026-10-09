@@ -23,19 +23,35 @@ function build(ctx, err, setBusy) {
   const accepted = players.filter((p) => p.accepted).length;
   const open = g.status === "READY_FOR_ACCEPTANCE";
 
+  const all = players.length > 0 && accepted === players.length;
   return [
     h(
       "section",
-      { class: "stack" },
-      h("h1", null, "Everyone sees every goal before it starts"),
+      { class: "grid two", style: { alignItems: "end" } },
       h(
-        "p",
-        { class: "lead" },
-        open
-          ? `${accepted} of ${players.length} accepted. The challenge starts the moment the last player accepts.`
-          : g.status === "INTAKE"
-            ? "The agreement opens once every contract is locked."
-            : `${accepted} of ${players.length} accepted. The terms below are locked.`,
+        "div",
+        { class: "stack" },
+        h("h1", null, "Everyone sees every goal before it starts"),
+        h(
+          "p",
+          { class: "lead" },
+          open
+            ? "The challenge starts the moment the last player accepts. One decline cancels it and refunds everyone."
+            : g.status === "INTAKE"
+              ? "The agreement opens once every contract is locked."
+              : "Every player accepted. The terms below are locked.",
+        ),
+      ),
+      h(
+        "div",
+        { class: `block ${all ? "field" : "night"} stack` },
+        h("div", { class: "label" }, "Accepted"),
+        h("div", { class: "tally" }, `${accepted} of ${players.length}`),
+        h(
+          "div",
+          { class: "row" },
+          players.map((p) => h("div", { class: `seat-ring ${p.accepted ? "accepted taken" : ""}`.trim(), style: { width: "48px", height: "48px", fontSize: "1.4rem" }, "aria-label": `${p.name}: ${p.accepted ? "accepted" : "not yet"}` }, p.name.charAt(0).toUpperCase())),
+        ),
       ),
     ),
     me && open ? myDecision(ctx, err, setBusy) : null,
@@ -46,7 +62,13 @@ function build(ctx, err, setBusy) {
         h(
           "div",
           { class: "stack" },
-          h("div", { class: "row between" }, h("h3", null, p.name), p.accepted ? pill("ACCEPTED") : pill("PENDING", "Not yet accepted")),
+          h(
+            "div",
+            { class: "seat-head" },
+            h("div", { class: `seat-ring taken ${p.accepted ? "accepted" : ""}`.trim(), "aria-hidden": "true" }, p.name.charAt(0).toUpperCase()),
+            h("h3", { style: { flex: "1" } }, p.player_id === ctx.meId ? `${p.name} (you)` : p.name),
+            p.accepted ? pill("ACCEPTED") : pill("PENDING", "Not yet"),
+          ),
           contractCard(p.contract, { hideStatus: true }),
         ),
       ),
@@ -67,12 +89,12 @@ function myDecision(ctx, err, setBusy) {
     const waiting = players.filter((p) => !p.accepted).map((p) => p.name);
     return h(
       "section",
-      { class: "card stack" },
-      h("div", { class: "row" }, pill("ACCEPTED", "You accepted")),
-      h("p", { class: "lead" }, waiting.length ? `Waiting for ${waiting.join(" and ")}.` : "Everyone has accepted."),
+      { class: "block field stack" },
+      h("h2", null, "You accepted"),
+      h("p", { class: "lead", style: { color: "var(--ink)" } }, waiting.length ? `Waiting for ${waiting.join(" and ")}.` : "Everyone has accepted."),
     );
   }
-  const accept = h("button", { class: "btn primary", type: "button" }, "I accept these terms");
+  const accept = h("button", { class: "btn primary", type: "button" }, "I accept");
   const decline = h("button", { class: "btn danger", type: "button" }, "Decline and cancel");
   const run = async (button, label, fn) => {
     setBusy(true);
@@ -88,7 +110,7 @@ function myDecision(ctx, err, setBusy) {
   });
   return h(
     "section",
-    { class: "card stack" },
+    { class: "block wheat stack" },
     h("h2", null, `${me.name}, do you accept?`),
     h("p", null, "You accept your own contract, every other player's contract, the rubric and the terms. A decline cancels the group and refunds every entry."),
     err,

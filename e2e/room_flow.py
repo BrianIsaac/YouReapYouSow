@@ -170,7 +170,7 @@ def run(base: str, out: Path, stop_after: str) -> list[str]:  # noqa: PLR0912, P
         room.shot(alice, "04-agreement-laptop")
         room.shot(ben, "04-agreement-phone")
         for page in room.pages:
-            page.get_by_role("button", name="I accept these terms").click()
+            page.get_by_role("button", name="I accept", exact=True).click()
             page.wait_for_timeout(300)
 
         if last < STAGES.index("challenge"):
