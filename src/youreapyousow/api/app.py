@@ -142,8 +142,12 @@ class Runtime:
         except (ConfigError, KwalSessionError, OSError, ValueError):
             return
         try:
-            funding = await asyncio.wait_for(kwal.funding(), timeout=10)
-        except Exception:
+            funding = await asyncio.wait_for(kwal.funding(), timeout=20)
+        except Exception as error:
+            self.game.vault_source = (
+                f"The Kwal vault could not be read at start ({type(error).__name__}); entries "
+                "are reserved against the configured stand-in balance"
+            )
             return
         finally:
             await kwal.aclose()

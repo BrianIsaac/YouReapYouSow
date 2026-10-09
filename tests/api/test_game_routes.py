@@ -109,6 +109,14 @@ async def test_three_players_join_talk_lock_and_accept(http: httpx.AsyncClient) 
     assert state["group"]["status"] == "OPEN_FOR_JOINING"
     assert state["clock"]["label"] == "Demo time: 1 minute = 1 week"
     assert state["pool"]["stand_in"].startswith("The pool is test USDC in the Kwal vault")
+    assert state["pool"]["at_capacity"] == {
+        "entries": 3,
+        "gross": "75.00",
+        "buffer": "7.50",
+        "ceiling": "67.50",
+        "surplus": "10.01",
+    }
+    assert state["pool"]["vault_source"].startswith("configured stand-in balance")
     ids: list[str] = []
     for name in ("Alice", "Ben", "Chloe"):
         answer = await http.post("/api/join", json={"name": name})
@@ -216,3 +224,20 @@ async def test_finalize_buys_the_prize_and_the_state_shows_the_order(running: Ru
     assert answer["state"]["group"]["status"] == "FULFILLED"
     tail = [e["type"] for e in answer["state"]["ledger_tail"]]
     assert "prize.purchased" in tail
+
+
+async def test_the_score_events_and_the_ledger_read_back_for_the_screen(running: Running) -> None:
+    """``/api/events`` per player and ``/api/ledger`` after a position, each with summaries."""
+    http = running.http
+    alice, ben, _ = await _active(http)
+    await http.post("/api/checkin", data={"player_id": ben, "milestone": "0", "value": "1"})
+    events = (await http.get("/api/events", params={"player_id": ben})).json()["events"]
+    assert [e["state"] for e in events] == ["VERIFIED"]
+    assert (await http.get("/api/events", params={"player_id": alice})).json()["events"] == []
+    ledger = (await http.get("/api/ledger")).json()["events"]
+    last = ledger[-1]
+    assert last["type"] == "score.recorded"
+    assert last["summary"] == "Ben: milestone 1 verified, +15."
+    after = (await http.get("/api/ledger", params={"after_seq": last["seq"]})).json()
+    assert after["events"] == []
+    assert after["chain_intact"] is True

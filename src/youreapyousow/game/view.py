@@ -19,7 +19,7 @@ from youreapyousow.game.models import (
     Standing,
 )
 from youreapyousow.game.rubric import Rubric, standings
-from youreapyousow.game.service import STAND_IN, GameService, money
+from youreapyousow.game.service import STAND_IN, GameService, compute_pool, money
 from youreapyousow.ledger.events import EventType, LedgerEvent
 
 LEDGER_TAIL = 8
@@ -218,7 +218,11 @@ def summarise(event: LedgerEvent, names: dict[str, str]) -> str:  # noqa: PLR091
         The sentence.
     """
     p = event.payload
-    who = names.get(event.subject_id, str(p.get("name", "")))
+    who = (
+        names.get(event.subject_id)
+        or names.get(str(p.get("participant_id", "")))
+        or str(p.get("name", ""))
+    )
     match event.type:
         case EventType.GROUP_OPENED:
             return f"Group opened: {p.get('title')}, entry {p.get('entry_amount')} test USDC."
@@ -309,6 +313,20 @@ def rubric_view(rubric: Rubric, group: Group) -> dict[str, JsonValue]:
     }
 
 
+def _capacity(service: GameService) -> dict[str, JsonValue]:
+    terms = service.terms
+    full = compute_pool(
+        terms.entry_amount, terms.max_players, terms.buffer_rate, service.prize_quote
+    )
+    return {
+        "entries": full.entries,
+        "gross": money(full.gross),
+        "buffer": money(full.buffer),
+        "ceiling": money(full.ceiling),
+        "surplus": _amount(full.surplus),
+    }
+
+
 def state_view(
     service: GameService, prize: dict[str, JsonValue], ledger_events: list[LedgerEvent]
 ) -> dict[str, JsonValue]:
@@ -392,6 +410,7 @@ def state_view(
                 "the prize, its shipping and tax. Refunded in full if the group does not "
                 "start. Surplus is refunded pro rata."
             ),
+            "at_capacity": _capacity(service),
             "vault_balance": money(service.vault_balance),
             "vault_source": service.vault_source,
         },
