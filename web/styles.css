@@ -489,3 +489,7 @@ td.r, th.r { text-align: right; }
 .tile-count { font-size: var(--s4); }
 .featured .tile-count { font-size: clamp(3rem, 7vw, 5.4rem); }
 .block .pill.verified, .block .pill.money, .block .pill.lead { box-shadow: inset 0 0 0 1.5px rgba(13, 35, 26, 0.35); }
+.block.night :where(.pill) { background: var(--night-3); color: var(--text-2); box-shadow: none; }
+.block.night .pill.accent { background: var(--night-3); color: var(--text); }
+.block.night .pill.pending { background: transparent; color: var(--amber); box-shadow: inset 0 0 0 2px var(--amber); }
+.featured .tile-img { width: 120px; height: 120px; }
