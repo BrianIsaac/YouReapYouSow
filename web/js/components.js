@@ -15,34 +15,25 @@ export function demoClockNote(state) {
 export function prizeBlock(state) {
   const prize = state.prize || {};
   const quote = prize.quote;
-  const image = prize.image_url
+  const initial = (prize.merchant || prize.name || "?").trim().charAt(0).toUpperCase();
+  const mark = prize.image_url
     ? h("img", { class: "prize-img", src: prize.image_url, alt: prize.name || "The prize" })
-    : h("div", { class: "prize-img", role: "img", "aria-label": "No picture of the prize" }, prize.name || "The prize");
+    : h("div", { class: "prize-mark", "aria-hidden": "true" }, initial);
   return h(
     "div",
-    { class: "prize" },
-    image,
+    { class: "stack" },
+    h("div", { class: "label" }, "The prize"),
+    h("div", { class: "row", style: { alignItems: "center", gap: "20px", flexWrap: "nowrap" } }, mark, h("h2", null, prize.name || "To be announced")),
     h(
       "div",
-      { class: "stack" },
-      h("h2", null, prize.name || "To be announced"),
-      h("p", { class: "muted" }, prize.merchant ? `From ${prize.merchant}, through Reap's catalogue` : null),
-      h(
-        "div",
-        { class: "row" },
-        prize.list_price ? h("span", null, `List price ${money(prize.list_price, "USD")}`) : null,
-        quote
-          ? h("span", { class: "pill money" }, `Landed quote ${money(quote.final_amount, "USD")}, ${quote.source || "quoted"}`)
-          : h("span", { class: "pill pending" }, "Not yet quoted"),
-      ),
+      { class: "row" },
       quote
-        ? h(
-            "p",
-            { class: "small muted" },
-            `Item ${money(quote.items, "")}, shipping ${money(quote.shipping, "")}, tax ${money(quote.tax, "")}, shipped to Singapore.`,
-          )
-        : null,
+        ? h("span", { class: "pill money" }, `Quoted ${money(quote.final_amount, "USD")} landed in Singapore`)
+        : h("span", { class: "pill pending" }, "Quoted when the winner is named"),
     ),
+    quote
+      ? h("p", { class: "small muted" }, `Item ${money(quote.items, "")}, shipping ${money(quote.shipping, "")}, tax ${money(quote.tax, "")}. ${prize.merchant ? `From ${prize.merchant} through Reap.` : ""}`)
+      : h("p", { class: "small muted" }, prize.merchant ? `From ${prize.merchant}, bought through Reap by the agent.` : "Bought through Reap by the agent."),
   );
 }
 
@@ -86,7 +77,7 @@ export function disclosure(state) {
 
 export function standingsTable(state, meId, rows) {
   const list = rows || state.leaderboard || [];
-  if (!list.length) return h("p", { class: "muted" }, "No standings yet.");
+  if (!list.length) return h("p", { class: "muted" }, "No one has a seat yet.");
   const max = (state.rubric && state.rubric.total_points) || 100;
   return h(
     "div",
@@ -94,26 +85,26 @@ export function standingsTable(state, meId, rows) {
     h(
       "table",
       { class: "standings" },
-      h("thead", null, h("tr", null, h("th", null, "#"), h("th", null, "Player"), h("th", { class: "r" }, "Points"))),
+      h("thead", null, h("tr", null, h("th", null, "Rank"), h("th", null, "Player"), h("th", { class: "r" }, "Points"))),
       h(
         "tbody",
         null,
-        list.map((row) =>
-          h(
+        list.map((row) => {
+          const pct = Math.min(100, (100 * (row.score || 0)) / max);
+          const first = row.rank === 1 && (row.score || 0) > 0;
+          return h(
             "tr",
-            { class: row.player_id === meId ? "me" : null },
+            { class: [row.player_id === meId ? "me" : "", first ? "first" : ""].join(" ").trim() || null, style: { "--pct": `${pct}%` } },
             h("td", { class: "rank" }, row.rank ?? "-"),
             h(
               "td",
               null,
-              h("div", null, h("b", null, row.name), row.player_id === meId ? h("span", { class: "muted small" }, "  you") : null),
-              h("div", { class: "tiny muted" }, `${plural(row.verified_milestones || 0, "milestone")} verified`,
-                row.last_verified_at ? `, last at ${timeOfDay(row.last_verified_at)}` : ""),
-              h("div", { class: "bar" }, h("i", { style: { width: `${Math.min(100, (100 * (row.score || 0)) / max)}%` } })),
+              h("div", null, h("b", null, row.name), row.player_id === meId ? h("span", { class: "small" }, "  you") : null),
+              h("div", { class: "tiny muted" }, `${plural(row.verified_milestones || 0, "milestone")} verified`),
             ),
             h("td", { class: "r score num" }, row.score ?? 0),
-          ),
-        ),
+          );
+        }),
       ),
     ),
   );
@@ -254,8 +245,15 @@ const MONEY_TYPES = new Set([
   "prize.purchased",
 ]);
 
+// Ledger rows already shown, so new ones can arrive with a flash.
+const seenSeq = new Set();
+let ledgerPrimed = false;
+
 export function ledgerTail(state, { title = "The ledger" } = {}) {
   const events = state.ledger_tail || [];
+  const fresh = new Set(ledgerPrimed ? events.filter((e) => !seenSeq.has(e.seq)).map((e) => e.seq) : []);
+  events.forEach((e) => seenSeq.add(e.seq));
+  ledgerPrimed = true;
   return h(
     "section",
     { class: "plain" },
@@ -268,7 +266,7 @@ export function ledgerTail(state, { title = "The ledger" } = {}) {
         h("h2", null, title),
         state.ledger_intact === false
           ? h("span", { class: "pill rejected" }, "Chain broken")
-          : h("span", { class: "pill verified" }, "Hash chain intact"),
+          : h("span", { class: "pill verified" }, "Chain intact"),
       ),
       events.length
         ? h(
@@ -286,7 +284,7 @@ export function ledgerTail(state, { title = "The ledger" } = {}) {
                   .map((e) =>
                     h(
                       "tr",
-                      null,
+                      { class: fresh.has(e.seq) ? "arrive" : null },
                       h("td", { class: "num muted" }, `#${e.seq}`),
                       h(
                         "td",
@@ -305,30 +303,127 @@ export function ledgerTail(state, { title = "The ledger" } = {}) {
   );
 }
 
-export function progressRing(score, max = 100) {
+// Last score shown per ring, so a landing score counts up from where it was.
+const shownScores = new Map();
+
+export function progressRing(score, max = 100, { key = "me", lead = false } = {}) {
   const r = 52;
   const c = 2 * Math.PI * r;
-  const frac = Math.max(0, Math.min(1, (score || 0) / max));
+  const to = Math.max(0, score || 0);
+  const from = shownScores.has(key) ? shownScores.get(key) : to;
+  shownScores.set(key, to);
+  const offset = (v) => c * (1 - Math.max(0, Math.min(1, v / max)));
   const ring = svg("svg", { viewBox: "0 0 120 120", "aria-hidden": "true" });
-  ring.appendChild(svg("circle", { class: "track", cx: 60, cy: 60, r, fill: "none", "stroke-width": 10 }));
-  ring.appendChild(
-    svg("circle", {
-      class: "fill",
-      cx: 60,
-      cy: 60,
-      r,
-      fill: "none",
-      "stroke-width": 10,
-      "stroke-linecap": "round",
-      "stroke-dasharray": c,
-      "stroke-dashoffset": c * (1 - frac),
-    }),
+  ring.appendChild(svg("circle", { class: "track", cx: 60, cy: 60, r, fill: "none", "stroke-width": 11 }));
+  const fillCircle = svg("circle", {
+    class: "fill",
+    cx: 60,
+    cy: 60,
+    r,
+    fill: "none",
+    "stroke-width": 11,
+    "stroke-linecap": "round",
+    "stroke-dasharray": c,
+    "stroke-dashoffset": offset(from),
+  });
+  ring.appendChild(fillCircle);
+  const numberEl = h("b", null, from);
+  const el = h(
+    "div",
+    { class: `ring ${lead ? "lead" : ""}`.trim(), role: "img", "aria-label": `${to} of ${max} points` },
+    ring,
+    h("div", { class: "centre" }, numberEl, h("span", null, `of ${max}`)),
   );
+  if (from !== to) {
+    requestAnimationFrame(() => requestAnimationFrame(() => fillCircle.setAttribute("stroke-dashoffset", offset(to))));
+    countUp(numberEl, from, to, 900);
+  }
+  return el;
+}
+
+function countUp(el, from, to, ms) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    el.textContent = to;
+    return;
+  }
+  const start = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - start) / ms);
+    el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+export function playersBand(state, meId) {
+  const players = (state.players || []).slice().sort((a, b) => a.seat - b.seat);
+  const max = (state.rubric && state.rubric.total_points) || 100;
+  const top = Math.max(0, ...players.map((p) => p.score || 0));
   return h(
     "div",
-    { class: "ring", role: "img", "aria-label": `${score || 0} of ${max} points` },
-    ring,
-    h("div", { class: "centre" }, h("b", null, score || 0), h("span", null, `of ${max} points`)),
+    { class: "players-band" },
+    players.map((p) => {
+      const lead = top > 0 && (p.score || 0) === top;
+      return h(
+        "div",
+        { class: `player ${p.player_id === meId ? "me" : ""}`.trim() },
+        progressRing(p.score || 0, max, { key: p.player_id, lead }),
+        h("div", { class: "who" }, p.name),
+        h("div", { class: "row", style: { justifyContent: "center" } }, lead ? h("span", { class: "pill lead" }, "Leading") : null, h("span", { class: "sub" }, `${plural(p.verified_milestones || 0, "milestone")} verified`)),
+      );
+    }),
+  );
+}
+
+export function seatRings(state, meId) {
+  const g = state.group;
+  const players = state.players || [];
+  return h(
+    "div",
+    { class: "seat-rings" },
+    Array.from({ length: g.max_players }, (_, i) => {
+      const p = players.find((x) => x.seat === i + 1);
+      return h(
+        "div",
+        { class: "stack", style: { textAlign: "center" } },
+        h(
+          "div",
+          { class: `seat-ring ${p ? "taken" : ""} ${p && p.player_id === meId ? "mine" : ""}`.trim(), "aria-label": p ? `Seat ${i + 1}: ${p.name}` : `Seat ${i + 1}: open` },
+          p ? p.name.charAt(0).toUpperCase() : i + 1,
+        ),
+        h("div", { class: "seat-names" }, p ? p.name : "Open"),
+      );
+    }),
+  );
+}
+
+// The agent's spending authority at a glance: the quote inside the ceiling inside the pool.
+export function authorityBar(state, quoteAmount) {
+  const pool = state.pool || {};
+  const full = Number(state.group.entry_amount) * state.group.max_players;
+  const gross = Number(pool.gross) || 0;
+  const scale = Math.max(full, gross, Number(quoteAmount) || 0, 1);
+  const ceiling = Number(pool.ceiling) || 0;
+  const quote = Number(quoteAmount ?? pool.prize_quote ?? (state.prize && state.prize.quote && state.prize.quote.final_amount));
+  const pct = (v) => `${Math.max(0, Math.min(100, (100 * v) / scale))}%`;
+  const inside = Number.isFinite(quote) && quote <= ceiling;
+  return h(
+    "div",
+    { class: "authority", role: "img", "aria-label": Number.isFinite(quote) ? `Quote ${quote.toFixed(2)} against a ceiling of ${ceiling.toFixed(2)}` : `Ceiling ${ceiling.toFixed(2)}` },
+    h(
+      "div",
+      { class: "track" },
+      h("div", { class: "ceiling", style: { width: pct(ceiling) } }),
+      Number.isFinite(quote) ? h("div", { class: "quote", style: { width: `calc(${pct(quote)} - 6px)` } }) : null,
+      h("div", { class: "mark", style: { left: pct(ceiling) } }),
+    ),
+    h(
+      "div",
+      { class: "legend" },
+      Number.isFinite(quote) ? h("span", null, `Quote ${money(quote, "")}`) : h("span", null, "No quote yet"),
+      h("span", null, `Agent may spend up to ${money(ceiling, "")}`),
+      Number.isFinite(quote) ? h("span", null, inside ? "Inside the limit" : "Over the limit") : null,
+    ),
   );
 }
 
