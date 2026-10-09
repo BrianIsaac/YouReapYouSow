@@ -227,7 +227,15 @@ const LEDGER_TYPE_LABEL = {
   "checkout.completed": "Checkout completed",
   "prize.purchased": "Prize purchased",
   "group.cancelled": "Group cancelled",
+  "group.fulfilled": "Group fulfilled",
+  "purchase.proposed": "Purchase proposed",
 };
+
+// A type the screen does not know yet still reads as words: "group.ready" becomes "Group ready".
+function readableType(type) {
+  const words = String(type || "").replace(/[._]+/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Event";
+}
 
 const MONEY_TYPES = new Set([
   "entry.reserved",
@@ -238,6 +246,8 @@ const MONEY_TYPES = new Set([
   "checkout.created",
   "checkout.completed",
   "prize.purchased",
+  "purchase.proposed",
+  "group.fulfilled",
 ]);
 
 // Ledger rows already shown, so new ones can arrive with a flash.
@@ -284,7 +294,7 @@ export function ledgerTail(state, { title = "The ledger" } = {}) {
                       h(
                         "td",
                         null,
-                        h("div", null, h("span", { class: `pill ${MONEY_TYPES.has(e.type) ? "money" : ""}` }, LEDGER_TYPE_LABEL[e.type] || e.type)),
+                        h("div", null, h("span", { class: `pill ${MONEY_TYPES.has(e.type) ? "money" : ""}` }, LEDGER_TYPE_LABEL[e.type] || readableType(e.type))),
                         h("div", { style: { marginTop: "4px" } }, e.summary),
                       ),
                       h("td", { class: "r hide-phone" }, h("div", { class: "muted num" }, timeOfDay(e.at)), h("div", { class: "hash" }, (e.hash || "").slice(0, 12))),

@@ -789,6 +789,7 @@ class Room:
             f"{milestone['target']}.",
             "advisory": advisory,
         }
+        event["history"] = [{k: event[k] for k in ("state", "reason", "at", "delta")}]
         self.events.append(event)
         self.append(
             "score.recorded",
@@ -819,6 +820,11 @@ class Room:
             if e["event_id"] == event_id:
                 e["state"] = "DISPUTED"
                 e["reason"] = f"Disputed by {p.name}: {reason}"
+                e["held_delta"] = e["delta"]
+                e["delta"] = 0
+                e["history"].append(
+                    {"state": "DISPUTED", "reason": e["reason"], "at": iso(utcnow())}
+                )
                 self.append("score.disputed", event_id, f"{p.name} disputed a score: {reason}")
                 return e
         raise Refusal("UNKNOWN_EVENT", "No such check-in.", 404)
@@ -840,10 +846,12 @@ class Room:
         for e in self.events:
             if e["event_id"] == event_id and e["state"] == "DISPUTED":
                 e["state"] = "VERIFIED" if reinstate else "REJECTED"
-                if not reinstate:
-                    e["delta"] = 0
+                e["delta"] = e.pop("held_delta", 0) if reinstate else 0
                 verdict = "reinstated" if reinstate else "rejected"
                 e["reason"] = f"Reviewed: {verdict}."
+                e["history"].append(
+                    {"state": e["state"], "reason": e["reason"], "at": iso(utcnow())}
+                )
                 self.append(
                     "score.reviewed", event_id, f"A reviewer {verdict} a disputed check-in."
                 )

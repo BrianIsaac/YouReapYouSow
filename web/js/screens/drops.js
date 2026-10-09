@@ -2,7 +2,7 @@
 
 import { h, fill, countdown, money, groupPill, now, prefs } from "../dom.js";
 
-const TONES = ["wheat", "field", "sky", "paper", "night"];
+const TONES = ["tone-blue", "tone-sky", "tone-indigo", "tone-cyan", "tone-ice"];
 
 export function mount(ctx) {
   const el = h("div", { class: "stack-lg" });

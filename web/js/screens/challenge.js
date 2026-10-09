@@ -112,7 +112,7 @@ function headerBlock(ctx) {
     ),
     h(
       "div",
-      { class: `block ${g.status === "ACTIVE" ? "field" : "night"} stack` },
+      { class: `block ${g.status === "ACTIVE" ? "bright" : "white"} stack` },
       h("div", { class: "label" }, g.status === "ACTIVE" ? "Submissions close in" : "Submissions"),
       countdown(g.ends_at, { done: "Closed" }),
       h("p", { class: "small muted" }, `At ${timeOfDay(g.ends_at)}, real time.`),
@@ -132,11 +132,11 @@ function progressBlock(ctx, events) {
     due
       ? h(
           "div",
-          { class: "block wheat" },
+          { class: "block strong" },
           h("div", { class: "label" }, `Due now: your day ${due.day} milestone, worth ${due.max_points} points`),
           h("div", { class: "row", style: { alignItems: "baseline", gap: "14px", marginTop: "8px" } }, h("span", { class: "numeral", style: { fontSize: "clamp(3.6rem, 12vw, 6rem)" } }, due.target), h("span", { class: "label", style: { fontSize: "1.3rem" } }, unit)),
         )
-      : h("div", { class: "block field" }, h("h2", null, "Every milestone verified")),
+      : h("div", { class: "block bright" }, h("h2", null, "Every milestone verified")),
     h("h2", null, contract.goal_statement),
     h("p", { class: "muted" }, `From ${contract.baseline.value} to ${contract.target.value} ${unit}, ${me.score || 0} of ${contract.total_max_points || 100} points so far.`),
     milestoneList(contract, { events, showWindows: true }),
@@ -190,6 +190,13 @@ export function eventRow(e, highlight, arrive = false) {
         )
       : null,
     e.evidence_id ? h("div", { class: "why-line" }, h("a", { href: api.evidenceUrl(e.evidence_id), target: "_blank", rel: "noopener" }, "View the evidence")) : null,
+    Array.isArray(e.history) && e.history.length > 1
+      ? h(
+          "ol",
+          { class: "why-line trail" },
+          e.history.slice(1).map((x) => h("li", null, pill(x.state), " ", x.reason || "", x.at ? h("span", { class: "tiny" }, `  ${timeOfDay(x.at)}`) : null)),
+        )
+      : null,
   );
 }
 

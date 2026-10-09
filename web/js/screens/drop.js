@@ -40,10 +40,10 @@ function build(ctx) {
         ),
       ),
       clockBlock(state, cancelled),
-      h("div", { class: "block paper p-prize" }, prizeBlock(state), note ? h("p", { class: "tiny muted", style: { marginTop: "10px" } }, note) : null),
+      h("div", { class: "block white p-prize" }, prizeBlock(state), note ? h("p", { class: "tiny muted", style: { marginTop: "10px" } }, note) : null),
       h(
         "div",
-        { class: "block wheat p-pool" },
+        { class: "block strong p-pool" },
         h("div", { class: "label" }, "The pool"),
         h("div", { class: "numeral" }, money(pool.gross, "")),
         cancelled
@@ -53,7 +53,7 @@ function build(ctx) {
       ),
       h(
         "div",
-        { class: "block night p-seats stack" },
+        { class: "block white p-seats stack" },
         h("div", { class: "label" }, `${players.length} of ${g.max_players} seats taken`),
         seatRings(state, ctx.meId),
         cancelled ? null : me ? h("p", { class: "small muted" }, `You hold seat ${me.seat}.`) : h("p", { class: "small muted" }, g.starts_at ? `It starts at ${timeOfDay(g.starts_at)} if all ${g.max_players} seats are taken and everyone has accepted; otherwise every entry is refunded.` : `It starts when all ${g.max_players} seats are taken and everyone accepts.`),
@@ -69,7 +69,7 @@ function build(ctx) {
 function clockBlock(state, cancelled) {
   const g = state.group;
   if (cancelled) {
-    return h("div", { class: "block night p-clock" }, h("div", { class: "label" }, "Cancelled"), h("div", { class: "big" }, "Refunded"));
+    return h("div", { class: "block white p-clock" }, h("div", { class: "label" }, "Cancelled"), h("div", { class: "big" }, "Refunded"));
   }
   const open = g.status === "OPEN_FOR_JOINING";
   const live = g.status === "ACTIVE";
@@ -78,7 +78,7 @@ function clockBlock(state, cancelled) {
   const label = before && g.starts_at ? "Starts in" : open ? "Enrolment closes in" : live ? "Submissions close in" : "The challenge";
   return h(
     "div",
-    { class: "block field p-clock" },
+    { class: "block bright p-clock" },
     h("div", { class: "label" }, label),
     (before && g.starts_at) || open || live
       ? countdown(live ? g.ends_at : startAt, { done: live ? "Closed" : "Starting" })
