@@ -232,6 +232,11 @@ async def test_finalize_buys_the_prize_and_the_state_shows_the_order(running: Ru
     assert answer["state"]["group"]["status"] == "FULFILLED"
     tail = [e["type"] for e in answer["state"]["ledger_tail"]]
     assert "prize.purchased" in tail
+    ledger = (await http.get("/api/ledger")).json()["events"]
+    summaries = [e["summary"] for e in ledger]
+    assert "Authority gate on the proposal: allow (all_rules_passed)." in summaries
+    assert "Authority gate at the claim: allow (all_rules_passed)." in summaries
+    assert "Reap quoted Keychron: 57.49 USD landed in Singapore." in summaries
 
 
 async def test_the_score_events_and_the_ledger_read_back_for_the_screen(running: Running) -> None:

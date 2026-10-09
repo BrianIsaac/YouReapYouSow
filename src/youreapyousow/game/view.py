@@ -256,10 +256,42 @@ def summarise(event: LedgerEvent, names: dict[str, str]) -> str:  # noqa: PLR091
         case EventType.GROUP_FINALIZED:
             return f"Winner: {p.get('winner_name')}."
         case EventType.QUOTE_LANDED:
-            amount = p.get("final_amount") or ""
-            return f"Prize quote landed: {amount}."
+            return f"Reap quoted {p.get('merchant')}: {_landed(p)} landed in Singapore."
         case EventType.POLICY_DECIDED:
-            return f"Authority gate: {p.get('disposition')} ({p.get('rule')})."
+            phase = "on the proposal" if p.get("phase") == "proposal" else "at the claim"
+            return f"Authority gate {phase}: {p.get('disposition')} ({p.get('rule')})."
+        case EventType.OBJECTIVE_CREATED:
+            return "The agent's purchase objective: budget the pool's ceiling."
+        case EventType.GRANT_ISSUED:
+            return f"Authority granted: up to {p.get('per_transaction_cap_usd')} in one purchase."
+        case EventType.REAP_ENROLLED:
+            return f"Payment enrolment bound ({p.get('status')})."
+        case EventType.NEED_RAISED:
+            return "The prize raised as the agent's need."
+        case EventType.CATALOGUE_SEARCHED:
+            products = p.get("products")
+            count = len(products) if isinstance(products, list) else 0
+            return f"Reap catalogue searched: {count} products."
+        case EventType.CATALOGUE_DETAILED:
+            return "Product details read."
+        case EventType.CATALOGUE_VARIANT_RESOLVED:
+            return "Variant resolved."
+        case EventType.PURCHASE_PROPOSED:
+            return f"The agent proposed buying for {p.get('amount')}."
+        case EventType.PURCHASE_CLAIMED:
+            return "Purchase claimed once, under an idempotency key."
+        case EventType.CHECKOUT_CREATED:
+            return "Checkout created at Reap."
+        case EventType.GROUP_FULFILLED:
+            return (
+                f"Group fulfilled; {p.get('surplus_refunded_pro_rata')} surplus refunded pro rata."
+            )
+        case EventType.GROUP_INTAKE:
+            return "Every seat taken: the coach is open."
+        case EventType.GROUP_READY:
+            return "Every contract locked: the agreement is open."
+        case EventType.GROUP_REFUNDING:
+            return "Refunding every entry."
         case EventType.CHECKOUT_COMPLETED:
             return f"Checkout completed: order {p.get('order_id')}."
         case EventType.PRIZE_PURCHASED:
@@ -270,6 +302,15 @@ def summarise(event: LedgerEvent, names: dict[str, str]) -> str:  # noqa: PLR091
             return "Group cancelled; every entry refunded."
         case _:
             return event.type.value.replace("_", " ").replace(".", ": ")
+
+
+def _landed(payload: dict[str, JsonValue]) -> str:
+    breakdown = payload.get("breakdown")
+    if isinstance(breakdown, dict):
+        final = breakdown.get("final_amount")
+        if isinstance(final, dict):
+            return f"{final.get('amount')} {final.get('currency', '')}".strip()
+    return "a landed price"
 
 
 def ledger_view(event: LedgerEvent, names: dict[str, str]) -> dict[str, JsonValue]:
