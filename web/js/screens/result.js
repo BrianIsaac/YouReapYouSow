@@ -90,7 +90,7 @@ function build(ctx, ui) {
       "section",
       { class: "stack" },
       h("div", { class: "eyebrow" }, "Result"),
-      h("h1", null, pending ? "Standings are frozen" : result && result.winner ? `${result.winner.name} wins` : "The result"),
+      h("h1", null, pending ? "Standings are frozen" : g.status === "FULFILLED" ? "The prize is bought" : result && result.winner ? "The winner is named" : "The result"),
       pending ? h("p", { class: "lead" }, "Submissions are closed. Any player can dispute a score before the window ends; then the winner is named and the agent buys the prize.") : null,
     ),
     result && result.winner ? winnerBlock(state, result) : null,
@@ -101,7 +101,7 @@ function build(ctx, ui) {
         "div",
         { class: "stack-lg" },
         pending || (result && result.purchase && result.purchase.status === "FAILED") || ui.buying ? finishBlock(ctx, ui) : null,
-        result && result.purchase && !ui.buying ? purchaseBlock(state, result.purchase) : null,
+        result && result.purchase ? purchaseBlock(state, result.purchase) : null,
         ui.buying && !(result && result.purchase) ? buyingBlock() : null,
         h("section", { class: "card stack" }, h("div", { class: "row between" }, h("h2", null, "Final standings"), pill("LOCKED", "Frozen")), standingsTable(state, ctx.meId, standings), result && result.tie_break_applied ? h("p", { class: "small muted" }, `Tie-break applied: ${state.rubric ? state.rubric.tie_break : ""}`) : null),
       ),
@@ -199,7 +199,7 @@ function disputesBlock(ctx, ui, pending) {
     "section",
     { class: "card stack" },
     h("h2", null, "Check-ins"),
-    pending && me ? h("p", { class: "small muted" }, "Think a score is wrong? Dispute it while the window is open; it is held for review.") : null,
+    pending && me ? h("p", { class: "small muted" }, "Think another player's score is wrong, or yours was rejected unfairly? Dispute it while the window is open; it is held for review.") : null,
     ui.disputeErr,
     list.length
       ? h(
@@ -208,7 +208,9 @@ function disputesBlock(ctx, ui, pending) {
           list.map((e) => {
             const row = eventRow({ ...e }, false);
             row.firstChild.prepend(h("span", { class: "small" }, `${names[e.participant_id] || "A player"}: `));
-            if (pending && me && ctx.state.group.status === "DISPUTE_WINDOW" && e.state !== "DISPUTED") {
+            const own = e.participant_id === ctx.meId;
+            const disputable = e.state !== "DISPUTED" && (own ? e.state === "REJECTED" : e.state === "VERIFIED");
+            if (pending && me && ctx.state.group.status === "DISPUTE_WINDOW" && disputable) {
               row.append(ui.editing === e.event_id ? disputeForm(ctx, ui, e) : h("div", { class: "why-line" }, h("button", { class: "btn ghost", type: "button", style: { minHeight: "40px", padding: "0 14px" }, onclick: () => ui.setEditing(e.event_id) }, "Dispute this score")));
             }
             return row;
