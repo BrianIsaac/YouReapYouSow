@@ -25,7 +25,6 @@ export function prizeBlock(state) {
     h(
       "div",
       { class: "stack" },
-      h("div", { class: "eyebrow" }, "The prize"),
       h("h2", null, prize.name || "To be announced"),
       h("p", { class: "muted" }, prize.merchant ? `From ${prize.merchant}, through Reap's catalogue` : null),
       h(
@@ -138,7 +137,7 @@ export function milestoneList(contract, { events = [], showWindows = false } = {
           "span",
           { class: "target" },
           h("b", null, `${m.target} ${unit}`),
-          met ? pill("VERIFIED") : isDue ? h("span", { class: "pill accent" }, "Due now") : null,
+          met ? pill("VERIFIED") : null,
         ),
         h("span", { class: "pts" }, `${m.max_points} pts`),
       );
@@ -205,7 +204,7 @@ export function rubricCard(rubric) {
   if (!rubric) return null;
   return h(
     "section",
-    { class: "card" },
+    { class: "plain" },
     h(
       "div",
       { class: "stack" },
@@ -258,7 +257,7 @@ export function ledgerTail(state, { title = "The ledger" } = {}) {
   const events = state.ledger_tail || [];
   return h(
     "section",
-    { class: "card" },
+    { class: "plain" },
     h(
       "div",
       { class: "stack" },

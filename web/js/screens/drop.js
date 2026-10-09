@@ -20,16 +20,27 @@ function build(ctx) {
   return [
     h(
       "section",
-      { class: "stack" },
-      h("div", { class: "eyebrow" }, "Tonight's drop"),
-      h("h1", null, g.title),
+      { class: "hero" },
       h(
-        "p",
-        { class: "lead" },
-        `${g.max_players} people, ${g.max_players} personal goals, one prize. Each player agrees a goal with the coach, everyone accepts the same rules, and whoever earns the most verified points wins. The agent then buys the prize for them through Reap.`,
+        "div",
+        null,
+        h("h1", null, g.title),
+        h(
+          "p",
+          { class: "lead" },
+          `${g.max_players} people, ${g.max_players} personal goals, one prize. Each player agrees a goal with the coach, everyone accepts the same rules, and whoever earns the most verified points wins. The agent then buys the prize for them through Reap.`,
+        ),
       ),
-      cancelled ? null : stateStrip(g.status),
+      h(
+        "div",
+        { class: "card stack" },
+        g.status === "OPEN_FOR_JOINING"
+          ? deadlineBlock("Enrolment closes in", g.enrolment_deadline, "Enrolment closed", state)
+          : h("div", { class: "stack" }, h("div", { class: "eyebrow" }, "The challenge runs for"), h("p", { class: "big" }, `${g.duration_days} days`), state.clock ? h("span", { class: "pill accent" }, state.clock.label) : null),
+        callToAction(ctx, full, cancelled),
+      ),
     ),
+    cancelled ? null : stateStrip(g.status),
     cancelled
       ? h(
           "p",
@@ -38,27 +49,11 @@ function build(ctx) {
           " Every entry is refunded to its player; the refunds are on the ledger below.",
         )
       : null,
-    h(
-      "div",
-      { class: "grid two" },
-      h("section", { class: "card" }, prizeBlock(state)),
-      h(
-        "section",
-        { class: "card" },
-        h(
-          "div",
-          { class: "stack" },
-          g.status === "OPEN_FOR_JOINING"
-            ? deadlineBlock("Enrolment closes in", g.enrolment_deadline, "Enrolment closed", state)
-            : h("div", { class: "stack" }, h("div", { class: "eyebrow" }, "Challenge"), h("p", { class: "big" }, `${g.duration_days} days`), state.clock ? h("span", { class: "pill accent" }, state.clock.label) : null),
-          callToAction(ctx, full, cancelled),
-        ),
-      ),
-    ),
-    h("section", { class: "card" }, poolFigures(state)),
+    poolFigures(state),
     h(
       "div",
       { class: "grid halves" },
+      h("section", { class: "card" }, prizeBlock(state)),
       h(
         "section",
         { class: "card" },
@@ -82,8 +77,8 @@ function build(ctx) {
           me ? h("p", { class: "small muted" }, `You hold seat ${me.seat} as ${me.name}.`) : null,
         ),
       ),
-      h("section", { class: "card" }, h("div", { class: "stack" }, h("h2", null, "How the money works"), disclosure(state))),
     ),
+    h("section", { class: "plain stack" }, h("h2", null, "How the money works"), disclosure(state)),
     cancelled ? ledgerTail(state) : null,
   ];
 }

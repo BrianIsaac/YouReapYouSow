@@ -89,7 +89,6 @@ function build(ctx, ui) {
     h(
       "section",
       { class: "stack" },
-      h("div", { class: "eyebrow" }, "Result"),
       h("h1", null, pending ? "Standings are frozen" : g.status === "FULFILLED" ? "The prize is bought" : result && result.winner ? "The winner is named" : "The result"),
       pending ? h("p", { class: "lead" }, "Submissions are closed. Any player can dispute a score before the window ends; then the winner is named and the agent buys the prize.") : null,
     ),
@@ -113,10 +112,14 @@ function build(ctx, ui) {
 function winnerBlock(state, result) {
   return h(
     "section",
-    { class: "card winner" },
-    h("div", { class: "eyebrow" }, "Winner"),
-    h("div", { class: "name" }, result.winner.name),
-    h("p", { class: "lead" }, `${result.winner.score} verified points. The prize: ${state.prize ? state.prize.name : "the prize"}.`),
+    { class: "winner", "aria-label": "Winner" },
+    h(
+      "div",
+      null,
+      h("div", { class: "name" }, result.winner.name),
+      h("p", { class: "what" }, `wins the ${state.prize ? state.prize.name : "prize"}, bought by the agent from the pool.`),
+    ),
+    h("div", { class: "score-line" }, result.winner.score, h("small", null, "verified points")),
   );
 }
 
@@ -175,13 +178,13 @@ function purchaseBlock(state, p) {
     ),
     h(
       "div",
-      { class: "card quiet stack" },
-      h("div", { class: "row between" }, h("span", { class: "muted" }, "Landed quote"), h("b", { class: "num" }, money(p.quote_final_amount, "USD"))),
-      h("div", { class: "row between" }, h("span", { class: "muted" }, "Ceiling, the pool less the buffer"), h("b", { class: "num" }, money(p.ceiling))),
-      h("div", { class: "row between" }, h("span", { class: "muted" }, "Authority gate"), h("span", { class: `pill ${gateCls}` }, gateWord)),
-      gate.reason ? h("p", { class: "small muted" }, gate.reason) : null,
-      p.final_amount ? h("div", { class: "row between" }, h("span", { class: "muted" }, "Charged"), h("b", { class: "num" }, money(p.final_amount, "USD"))) : null,
-      h("div", { class: "row between" }, h("span", { class: "muted" }, "Through"), h("span", null, BACKEND_LABEL[p.backend] || p.backend || "-")),
+      { class: "receipt" },
+      h("div", { class: "line" }, h("span", { class: "muted" }, "Landed quote"), h("b", { class: "num" }, money(p.quote_final_amount, "USD"))),
+      h("div", { class: "line" }, h("span", { class: "muted" }, "Ceiling, the pool less the buffer"), h("b", { class: "num" }, money(p.ceiling))),
+      h("div", { class: "line" }, h("span", { class: "muted" }, "Authority gate"), h("span", { class: `pill ${gateCls}` }, gateWord)),
+      gate.reason ? h("div", { class: "line small muted" }, gate.reason) : null,
+      p.final_amount ? h("div", { class: "line" }, h("span", { class: "muted" }, "Charged"), h("b", { class: "num" }, money(p.final_amount, "USD"))) : null,
+      h("div", { class: "line" }, h("span", { class: "muted" }, "Through"), h("span", { style: { textAlign: "right" } }, BACKEND_LABEL[p.backend] || p.backend || "-")),
     ),
     p.order_id
       ? h("div", { class: "stack" }, h("div", { class: "eyebrow" }, "Order id"), h("div", { class: "order-id" }, p.order_id), p.checkout_id ? h("div", { class: "tiny muted mono" }, `Checkout ${p.checkout_id}`) : null)

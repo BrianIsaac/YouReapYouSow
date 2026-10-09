@@ -27,7 +27,6 @@ function build(ctx, err, setBusy) {
     h(
       "section",
       { class: "stack" },
-      h("div", { class: "eyebrow" }, "Group agreement"),
       h("h1", null, "Everyone sees every goal before it starts"),
       h(
         "p",
@@ -114,7 +113,7 @@ function terms(state) {
   ];
   return h(
     "section",
-    { class: "card stack" },
+    { class: "plain stack" },
     h("h2", null, "The terms"),
     h("ul", { class: "list terms" }, rows.map(([k, v]) => h("li", null, h("span", { class: "muted" }, k), h("span", { class: "v" }, v)))),
     disclosure(state),

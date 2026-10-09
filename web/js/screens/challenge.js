@@ -91,7 +91,6 @@ function headerBlock(ctx) {
     h(
       "div",
       { class: "stack" },
-      h("div", { class: "eyebrow" }, g.status === "ACTIVE" ? "The challenge is live" : "The challenge"),
       h("h1", null, g.title),
       h("div", { class: "row" }, day !== null ? h("span", { class: "lead" }, `Day ${Math.floor(day)} of ${g.duration_days}`) : null, demoClockNote(state)),
     ),
@@ -150,7 +149,7 @@ function eventsBlock(events, latest, pendingRow) {
           pendingRow
             ? h(
                 "li",
-                { class: "ci", style: { background: "var(--pending-bg)", borderRadius: "10px", padding: "14px" } },
+                { class: "ci waiting" },
                 h("div", null, h("b", null, `Milestone ${pendingRow.milestone + 1}`), h("span", { class: "muted small" }, `  claimed ${pendingRow.value}, ${pendingRow.kind}`)),
                 h("div", { class: "row" }, pill("PENDING")),
                 h("div", { class: "why-line" }, pendingRow.kind === "log" ? "Recording your log against the rubric." : "Reading your evidence and scoring it by the rubric."),
@@ -166,14 +165,14 @@ export function eventRow(e, highlight) {
   const adv = e.advisory;
   return h(
     "li",
-    { class: "ci", style: highlight ? { background: "var(--bg)", borderRadius: "10px", padding: "14px" } : null },
+    { class: `ci ${highlight ? "fresh" : ""}`.trim() },
     h(
       "div",
       null,
       h("b", null, `Milestone ${e.milestone + 1}`),
       h("span", { class: "muted small" }, `  claimed ${e.claimed_value}, ${e.evidence_kind}, ${timeOfDay(e.at)}`),
     ),
-    h("div", { class: "row" }, pill(e.state), h("b", { class: "num" }, e.delta > 0 ? `+${e.delta}` : "0")),
+    h("div", { class: "row" }, pill(e.state), h("span", { class: "delta" }, e.delta > 0 ? `+${e.delta}` : "0")),
     e.reason ? h("div", { class: "why-line" }, e.reason) : null,
     adv && adv.note
       ? h(

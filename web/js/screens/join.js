@@ -36,7 +36,6 @@ function buildForm(ctx) {
   const form = h(
     "form",
     { class: "card stack", novalidate: true },
-    h("div", { class: "eyebrow" }, "Join"),
     h("h1", null, "Take a seat"),
     h("p", { class: "lead" }, "Your entry is reserved against the vault the moment you join, and written to the ledger."),
     h("label", { class: "field" }, h("span", null, "Your name, as the room will see it"), name),
@@ -78,7 +77,6 @@ function seated(ctx) {
   return h(
     "section",
     { class: "card stack" },
-    h("div", { class: "eyebrow" }, "Seat reserved"),
     h("h1", null, `You are in, ${me.name}`),
     h("div", { class: "row" }, pill(me.entry), h("span", { class: "muted" }, `Seat ${me.seat}, ${money(g.entry_amount)}`)),
     g.status === "OPEN_FOR_JOINING"
@@ -104,6 +102,6 @@ function sidePanel(ctx) {
         players.length === 0 ? h("li", { class: "muted" }, "No one yet.") : null,
       ),
     ),
-    h("section", { class: "card stack" }, h("h2", null, "Disclosure"), disclosure(state)),
+    h("section", { class: "plain stack" }, h("h2", null, "Before you pay"), disclosure(state)),
   ];
 }
