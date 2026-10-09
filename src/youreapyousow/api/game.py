@@ -12,8 +12,15 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field, JsonValue
 
+from youreapyousow.game.models import GroupStatus, PrizePurchase
 from youreapyousow.game.service import MAX_EVIDENCE_BYTES, EvidenceIn, GameError
-from youreapyousow.game.view import contract_view, ledger_view, score_view, state_view
+from youreapyousow.game.view import (
+    contract_view,
+    ledger_view,
+    result_view,
+    score_view,
+    state_view,
+)
 
 if TYPE_CHECKING:
     from youreapyousow.api.app import Runtime
@@ -85,6 +92,20 @@ class IntakeBody(PlayerBody):
     """``POST /api/intake``."""
 
     message: str = Field(min_length=1, max_length=2000)
+
+
+class DisputeBody(PlayerBody):
+    """``POST /api/dispute``."""
+
+    event_id: str
+    reason: str = Field(default="", max_length=500)
+
+
+class ReviewBody(BaseModel):
+    """``POST /api/dispute/review``: the reviewer's verdict."""
+
+    event_id: str
+    reinstate: bool
 
 
 class ContractBody(PlayerBody):
@@ -376,3 +397,81 @@ async def evidence_file(evidence_id: str, request: Request) -> Response:
     if path is None:
         return refused(GameError("UNKNOWN_EVIDENCE", "No such evidence.", 404))
     return FileResponse(path)
+
+
+@router.post("/dispute")
+async def dispute(body: DisputeBody, request: Request) -> JSONResponse:
+    """Dispute a verified check-in inside the window.
+
+    Args:
+        body: The player, the check-in and why.
+        request: The request.
+
+    Returns:
+        The dispute event.
+    """
+    runtime = runtime_of(request)
+    async with runtime.game_lock:
+        try:
+            event = runtime.game.dispute(body.player_id, body.event_id, body.reason)
+        except GameError as error:
+            return refused(error)
+        return JSONResponse({"event": score_view(event)})
+
+
+@router.post("/dispute/review")
+async def review(body: ReviewBody, request: Request) -> JSONResponse:
+    """Resolve a disputed check-in (the reviewer's power).
+
+    Args:
+        body: The check-in and the verdict.
+        request: The request.
+
+    Returns:
+        The review event.
+    """
+    runtime = runtime_of(request)
+    async with runtime.game_lock:
+        try:
+            event = runtime.game.review(body.event_id, reinstate=body.reinstate)
+        except GameError as error:
+            return refused(error)
+        return JSONResponse({"event": score_view(event)})
+
+
+@router.post("/finalize")
+async def finalize(request: Request) -> JSONResponse:
+    """Name the winner, then have the agent buy the prize through Reap behind the gate.
+
+    Args:
+        request: The request.
+
+    Returns:
+        The result with the purchase, and the state.
+    """
+    runtime = runtime_of(request)
+    async with runtime.game_lock:
+        try:
+            group = runtime.game.finalize()
+        except GameError as error:
+            return refused(error)
+        result = group.result
+        if group.status != GroupStatus.FINALIZED or result is None:
+            return JSONResponse({"result": None, "state": state_of(runtime)})
+        if result.purchase is not None and result.purchase.status == "BUYING":
+            return refused(GameError("PURCHASE_IN_PROGRESS", "The agent is already buying."))
+        if runtime.buyer is None:
+            return refused(GameError("PURCHASE_FAILED", "No prize purchase file is loaded.", 503))
+        winner = next(s for s in result.standings if s.player_id == result.winner_id)
+        ceiling = runtime.game.pool().ceiling
+        runtime.game.purchase_progress(
+            PrizePurchase(status="BUYING", step="search", backend=runtime.buyer.backend)
+        )
+    bought = await runtime.buyer.buy(
+        ceiling=ceiling, winner=winner.name, on_step=runtime.game.purchase_progress
+    )
+    async with runtime.game_lock:
+        group = runtime.game.record_purchase(bought)
+        players = runtime.game.players()
+        body = None if group.result is None else result_view(group.result, players)
+        return JSONResponse({"result": body, "state": state_of(runtime)})

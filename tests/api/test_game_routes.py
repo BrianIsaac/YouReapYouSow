@@ -1,16 +1,20 @@
 """The challenge's routes through the real app on the mock: join to a running challenge."""
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
 import pytest
 from fastapi import FastAPI
 
+from tests.conftest import START
 from tests.game.helpers import DRAFTS
 from tests.game.test_coach import FakeChat
 from youreapyousow.api.app import Runtime, build_runtime, create_app
+from youreapyousow.clock import ManualClock
 from youreapyousow.config import Settings
 from youreapyousow.game.coach import Coach, CoachTurn
 from youreapyousow.game.llm import Link
@@ -43,13 +47,23 @@ class ScriptedCoach(Coach):
         return CoachTurn("Here is your contract.", self.drafts.pop(0), "fake")
 
 
+@dataclass
+class Running:
+    """The app, its runtime and its manual clock."""
+
+    http: httpx.AsyncClient
+    runtime: Runtime
+    clock: ManualClock
+
+
 @pytest.fixture
-async def http(tmp_path: Path) -> AsyncIterator[httpx.AsyncClient]:
-    """The app on the mock with a scripted coach.
+async def running(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[Running]:
+    """The app on the mock with a scripted coach, a fake photo reader and a manual clock.
 
     Yields:
-        A client on the app.
+        The running app.
     """
+    monkeypatch.setenv("REAP_PURCHASE_PATH", "agentic")
     settings = Settings.model_validate(
         {
             "database_path": tmp_path / "db.sqlite",
@@ -58,9 +72,10 @@ async def http(tmp_path: Path) -> AsyncIterator[httpx.AsyncClient]:
             "evidence_dir": tmp_path / "evidence",
         }
     )
+    clock = ManualClock(START)
 
     async def factory() -> Runtime:
-        runtime = build_runtime(settings)
+        runtime = build_runtime(settings, clock=clock)
         runtime.coach = ScriptedCoach()
         reading = json.dumps({"shows": True, "count": 9, "note": "nine push-ups"})
         runtime.verifier = Verifier([Link("openai:fake", FakeChat("m", [reading] * 5))])
@@ -68,9 +83,24 @@ async def http(tmp_path: Path) -> AsyncIterator[httpx.AsyncClient]:
 
     app: FastAPI = create_app(factory)
     async with app.router.lifespan_context(app):
+        runtime: Runtime = app.state.runtime
+        await asyncio.gather(*runtime.tasks)
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://game") as client:
-            yield client
+            yield Running(client, runtime, clock)
+
+
+@pytest.fixture
+def http(running: Running) -> httpx.AsyncClient:
+    """The client on the running app.
+
+    Args:
+        running: The running app.
+
+    Returns:
+        The client.
+    """
+    return running.http
 
 
 async def test_three_players_join_talk_lock_and_accept(http: httpx.AsyncClient) -> None:
@@ -156,3 +186,33 @@ async def test_a_photo_check_in_is_read_advisorily_and_scored_by_the_rubric(
         "/api/checkin", data={"player_id": alice, "milestone": "1", "value": "11"}
     )
     assert missing.json()["error"]["code"] == "MILESTONE_NOT_OPEN"
+
+
+async def test_finalize_buys_the_prize_and_the_state_shows_the_order(running: Running) -> None:
+    """Through the routes on the mock: the winner, the order id, the stand-in line, FULFILLED."""
+    http = running.http
+    alice, *_ = await _active(http)
+    await http.post(
+        "/api/checkin",
+        data={"player_id": alice, "milestone": "0", "value": "9"},
+        files={"file": ("p.jpg", b"\xff\xd8 x", "image/jpeg")},
+    )
+    state = (await http.get("/api/state")).json()
+    assert state["prize"]["quote"]["final_amount"] == "57.49"
+    assert state["pool"]["surplus"] == "10.01"
+    early = await http.post("/api/finalize", json={})
+    assert early.json()["error"]["code"] == "WRONG_STATE"
+    running.clock.advance(seconds=4 * 60 + 1)
+    assert (await http.get("/api/state")).json()["group"]["status"] == "DISPUTE_WINDOW"
+    running.clock.advance(seconds=21)
+    answer = (await http.post("/api/finalize", json={})).json()
+    result = answer["result"]
+    assert result["winner"]["name"] == "Alice"
+    purchase = result["purchase"]
+    assert purchase["status"] == "PURCHASED", purchase["error"]
+    assert purchase["order_id"]
+    assert purchase["gate"]["disposition"] == "allow"
+    assert purchase["stand_in"].startswith("The pool is test USDC")
+    assert answer["state"]["group"]["status"] == "FULFILLED"
+    tail = [e["type"] for e in answer["state"]["ledger_tail"]]
+    assert "prize.purchased" in tail

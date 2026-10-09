@@ -43,6 +43,7 @@ from youreapyousow.game.models import (
     GroupTerms,
     IntakeState,
     Player,
+    PrizePurchase,
     Result,
     ScoreEvent,
     ScoreState,
@@ -915,6 +916,223 @@ class GameService:
         types = [EventType.SCORE_RECORDED, EventType.SCORE_DISPUTED, EventType.SCORE_REVIEWED]
         events = self.ledger.events(objective_id=self.group().id, types=types)
         return [ScoreEvent.model_validate(e.payload) for e in events]
+
+    # Disputes, the result and the prize
+
+    def _original(self, event_id: str) -> ScoreEvent:
+        for event in self.score_events():
+            if event.event_id == event_id and event.supersedes is None:
+                return event
+        raise GameError("UNKNOWN_EVENT", "No such check-in in this group.", 404)
+
+    def _supersede(
+        self, original: ScoreEvent, state: ScoreState, delta: int, reason: str, type_: EventType
+    ) -> ScoreEvent:
+        group = self.group()
+        event = original.model_copy(
+            update={
+                "event_id": new_id("sev"),
+                "seq": len(self.score_events()) + 1,
+                "at": self.clock(),
+                "delta": delta,
+                "state": state,
+                "reason": reason,
+                "supersedes": original.event_id,
+            }
+        )
+        with self.db.transaction():
+            self._scores.insert(event, record_id=event.event_id, objective_id=group.id)
+            self._score_event(type_, group, event)
+        return event
+
+    def dispute(self, player_id: str, event_id: str, reason: str) -> ScoreEvent:
+        """Dispute a verified check-in inside the window; its points are withheld.
+
+        Args:
+            player_id: The player disputing, a member of the group.
+            event_id: The check-in.
+            reason: Why, in the player's words.
+
+        Returns:
+            The dispute event.
+
+        Raises:
+            GameError: If the window is closed or the check-in is not verified.
+        """
+        self.tick()
+        group = self.group()
+        if group.status != GroupStatus.DISPUTE_WINDOW or (
+            group.dispute_window_ends_at is not None
+            and self.clock() >= group.dispute_window_ends_at
+        ):
+            raise GameError("DISPUTE_WINDOW_CLOSED", "Disputes are taken only in the window.")
+        who = self.player(player_id).record
+        original = self._original(event_id)
+        if effective_states(self.score_events()).get(event_id) != ScoreState.VERIFIED:
+            raise GameError("NOT_DISPUTABLE", "Only a verified check-in can be disputed.")
+        return self._supersede(
+            original,
+            ScoreState.DISPUTED,
+            -original.delta,
+            f"Disputed by {who.name}: {reason.strip()[:200] or 'no reason given'}",
+            EventType.SCORE_DISPUTED,
+        )
+
+    def review(self, event_id: str, *, reinstate: bool) -> ScoreEvent:
+        """Resolve a disputed check-in: reinstate its points or uphold the dispute.
+
+        Args:
+            event_id: The disputed check-in.
+            reinstate: True to restore its points, False to reject it.
+
+        Returns:
+            The review event.
+
+        Raises:
+            GameError: If the result is final or the check-in is not disputed.
+        """
+        self.tick()
+        self._require(GroupStatus.DISPUTE_WINDOW)
+        original = self._original(event_id)
+        if effective_states(self.score_events()).get(event_id) != ScoreState.DISPUTED:
+            raise GameError("NOT_DISPUTED", "That check-in is not disputed.")
+        if reinstate:
+            return self._supersede(
+                original,
+                ScoreState.VERIFIED,
+                original.delta,
+                "Reviewed: the check-in stands.",
+                EventType.SCORE_REVIEWED,
+            )
+        return self._supersede(
+            original,
+            ScoreState.REJECTED,
+            0,
+            "Reviewed: the dispute is upheld.",
+            EventType.SCORE_REVIEWED,
+        )
+
+    def finalize(self) -> Group:
+        """Name the winner by the published tie-break once the dispute window has closed.
+
+        With no verified progress at all, there is no winner: the group cancels and refunds.
+
+        Returns:
+            The finalised group, its result naming the winner.
+
+        Raises:
+            GameError: If the window is still open, or the result is already final.
+        """
+        self.tick()
+        stored = self._current()
+        group = stored.record
+        if group.status == GroupStatus.FINALIZED:
+            return group
+        stored = self._require(GroupStatus.DISPUTE_WINDOW)
+        if group.dispute_window_ends_at is not None and self.clock() < group.dispute_window_ends_at:
+            raise GameError("DISPUTE_WINDOW_OPEN", "The dispute window is still open.")
+        board = standings(self.players(), self.score_events())
+        if not board or board[0].score == 0:
+            self._cancel(
+                stored, "No verified progress: there is no winner; every entry is refunded."
+            )
+            return self.group()
+        winner = board[0]
+        tie = len(board) > 1 and board[1].score == winner.score
+        result = Result(winner_id=winner.player_id, standings=tuple(board), tie_break_applied=tie)
+        with self.db.transaction():
+            self._save_group(
+                stored, group.model_copy(update={"status": GroupStatus.FINALIZED, "result": result})
+            )
+            self._event(
+                EventType.GROUP_FINALIZED,
+                group,
+                group.id,
+                {
+                    "winner_id": winner.player_id,
+                    "winner_name": winner.name,
+                    "score": winner.score,
+                    "tie_break_applied": tie,
+                    "tie_break": self.rubric.tie_break,
+                    "standings": [s.model_dump(mode="json") for s in board],
+                },
+            )
+        return self.group()
+
+    def purchase_progress(self, purchase: PrizePurchase) -> None:
+        """Show the purchase's step on the result, without a ledger event.
+
+        Args:
+            purchase: The purchase as it stands.
+        """
+        stored = self._current()
+        result = stored.record.result
+        if result is None:
+            return
+        self._save_group(
+            stored,
+            stored.record.model_copy(
+                update={"result": result.model_copy(update={"purchase": purchase})}
+            ),
+        )
+
+    def record_purchase(self, purchase: PrizePurchase) -> Group:
+        """Record the purchase's outcome: on an order id, the group is fulfilled.
+
+        Args:
+            purchase: The finished purchase.
+
+        Returns:
+            The group.
+        """
+        stored = self._current()
+        group = stored.record
+        result = group.result
+        if result is None:
+            return group
+        winner = next((s for s in result.standings if s.player_id == result.winner_id), None)
+        update: dict[str, object] = {"result": result.model_copy(update={"purchase": purchase})}
+        pool = self.pool()
+        with self.db.transaction():
+            if purchase.status == "PURCHASED":
+                update["status"] = GroupStatus.FULFILLED
+                stored = self._save_group(stored, group.model_copy(update=update))
+                charged = purchase.final_amount or Decimal(0)
+                self._event(
+                    EventType.PRIZE_PURCHASED,
+                    group,
+                    purchase.order_id or "order",
+                    {
+                        "order_id": purchase.order_id,
+                        "checkout_id": purchase.checkout_id,
+                        "final_amount": money(charged),
+                        "ceiling": money(pool.ceiling),
+                        "winner_id": result.winner_id,
+                        "winner_name": winner.name if winner else None,
+                        "backend": purchase.backend,
+                        "stand_in": STAND_IN,
+                    },
+                    refs={"intent": purchase.intent_id} if purchase.intent_id else None,
+                )
+                self._event(
+                    EventType.GROUP_FULFILLED,
+                    group,
+                    group.id,
+                    {
+                        "pool_gross": money(pool.gross),
+                        "prize": money(charged),
+                        "surplus_refunded_pro_rata": money(pool.gross - charged),
+                    },
+                )
+            else:
+                self._save_group(stored, group.model_copy(update=update))
+                self._event(
+                    EventType.PRIZE_PURCHASE_FAILED,
+                    group,
+                    group.id,
+                    {"error": purchase.error, "step": purchase.step, "backend": purchase.backend},
+                )
+        return self.group()
 
     # Time
 

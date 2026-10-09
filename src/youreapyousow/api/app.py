@@ -29,6 +29,7 @@ from youreapyousow.control import ControlPlane, Operator, mock_card_entry, need_
 from youreapyousow.game.coach import Coach
 from youreapyousow.game.llm import build_links
 from youreapyousow.game.models import GroupTerms
+from youreapyousow.game.prize import PrizeBuyer, preview_quote, prize_block
 from youreapyousow.game.service import GameService
 from youreapyousow.game.verifier import Verifier
 from youreapyousow.kwal.client import KwalClient
@@ -85,6 +86,7 @@ class Runtime:
         coach: The intake coach.
         verifier: The photo reader.
         purchase: The prize's purchase file, when it loads.
+        buyer: Buys the prize through the engine's agentic path.
         game_lock: Serialises the challenge's mutations.
         prize: The prize block of the polled state.
         tasks: Background tasks to cancel on shutdown.
@@ -101,6 +103,7 @@ class Runtime:
     coach: Coach
     verifier: Verifier
     purchase: PurchaseConfig | None
+    buyer: PrizeBuyer | None = None
     game_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     prize: dict[str, JsonValue] = field(default_factory=dict[str, JsonValue])
     tasks: list[asyncio.Task[None]] = field(default_factory=list[asyncio.Task[None]])
@@ -112,6 +115,19 @@ class Runtime:
             The item, its merchant and list price, and the landed quote when known.
         """
         return dict(self.prize)
+
+    async def preview_prize(self) -> None:
+        """Land the prize's quote for the pool's disclosure; keep going if Reap is slow."""
+        if self.purchase is None:
+            return
+        for _ in range(3):
+            try:
+                preview = await asyncio.wait_for(preview_quote(self.reap, self.purchase), 40)
+            except Exception:
+                continue
+            self.prize = prize_block(preview, self.settings.reap_backend)
+            self.game.prize_quote = preview.final_amount
+            return
 
     async def read_vault(self) -> None:
         """Read the vault's test USDC from Kwal when a session is saved; else keep the setting.
@@ -262,6 +278,14 @@ def build_runtime(
         "image_url": None,
         "quote": None,
     }
+    if purchase is not None:
+        enrollment = settings.reap_enrollment_id
+        runtime.buyer = PrizeBuyer(
+            control,
+            purchase,
+            backend=settings.reap_backend,
+            enrollment_id=None if enrollment is None else str(enrollment),
+        )
     if not game.has_group():
         game.open_group()
     return runtime
@@ -312,6 +336,7 @@ def create_app(factory: Callable[[], Awaitable[Runtime]]) -> FastAPI:
         app.state.runtime = runtime
         await runtime.attach(app)
         await runtime.read_vault()
+        runtime.tasks.append(asyncio.create_task(runtime.preview_prize()))
         # Also on the mock market, where it reads the fixtures, so /status names every
         # connector and its source from the first request.
         await runtime.market.refresh()
