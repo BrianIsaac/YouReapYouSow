@@ -13,16 +13,29 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from typing import cast
 
-from pydantic import BaseModel, ConfigDict, JsonValue
+from pydantic import BaseModel, ConfigDict, JsonValue, ValidationError
 
 from youreapyousow.clock import Clock
+from youreapyousow.game.coach import (
+    CoachDraft,
+    CoachTurn,
+    ContractInvalidError,
+    build_contract,
+    parse_number,
+    template_draft,
+)
 from youreapyousow.game.models import (
     CENT,
+    ChatTurn,
+    ContractStatus,
     EntryState,
+    GoalContract,
     Group,
     GroupStatus,
     GroupTerms,
+    IntakeState,
     Player,
     ScoreEvent,
 )
@@ -36,6 +49,14 @@ STAND_IN = (
     "The pool is test USDC in the Kwal vault on Ink Sepolia, a labelled stand-in for the "
     "card the agent charges. No cash value."
 )
+
+
+def _first_line(error: Exception) -> str:
+    if isinstance(error, ValidationError):
+        first = error.errors()[0]
+        where = ".".join(str(p) for p in first["loc"])
+        return f"{where}: {first['msg']}" if where else str(first["msg"])
+    return str(error).splitlines()[0]
 
 
 class GameError(Exception):
@@ -397,6 +418,192 @@ class GameService:
                 stored, stored.record.model_copy(update={"status": GroupStatus.CANCELLED})
             )
             self._event(EventType.GROUP_CANCELLED, group, group.id, {"reason": reason})
+
+    # The coach and the contract
+
+    def intake_player(self, player_id: str) -> Player:
+        """Return a player who may talk to the coach now.
+
+        Args:
+            player_id: The player.
+
+        Returns:
+            The player.
+
+        Raises:
+            GameError: If the group is not in intake or the contract is locked.
+        """
+        self.tick()
+        self._require(GroupStatus.INTAKE)
+        player = self.player(player_id).record
+        if player.intake == IntakeState.LOCKED:
+            raise GameError("CONTRACT_LOCKED", "Your contract is locked.")
+        return player
+
+    def record_intake(self, player_id: str, message: str, turn: CoachTurn) -> Player:
+        """Store a coach turn and, when it drafts one, the proposed contract.
+
+        Args:
+            player_id: The player.
+            message: What the player said.
+            turn: What the coach answered.
+
+        Returns:
+            The player, with the transcript and any proposed contract.
+
+        Raises:
+            GameError: If the state changed meanwhile, or the draft cannot be a contract.
+        """
+        self.intake_player(player_id)
+        group = self.group()
+        stored = self.player(player_id)
+        player = stored.record
+        transcript = (
+            *player.transcript,
+            ChatTurn(role="user", content=message),
+            ChatTurn(role="assistant", content=turn.reply),
+        )
+        update: dict[str, object] = {"transcript": transcript, "intake": IntakeState.CHATTING}
+        contract = None
+        if turn.draft is not None:
+            try:
+                contract = build_contract(
+                    participant_id=player.id,
+                    draft=turn.draft,
+                    rubric=self.rubric,
+                    duration_days=group.terms.duration_days,
+                    model=turn.model,
+                )
+            except ContractInvalidError:
+                contract = build_contract(
+                    participant_id=player.id,
+                    draft=template_draft(message),
+                    rubric=self.rubric,
+                    duration_days=group.terms.duration_days,
+                    model="template",
+                )
+            update |= {"contract": contract, "intake": IntakeState.PROPOSED}
+        with self.db.transaction():
+            saved = self._save_player(stored, player.model_copy(update=update))
+            if contract is not None:
+                self._contract_event(EventType.CONTRACT_PROPOSED, group, contract, message, turn)
+        return saved.record
+
+    def _contract_event(
+        self,
+        type_: EventType,
+        group: Group,
+        contract: GoalContract,
+        message: str = "",
+        turn: CoachTurn | None = None,
+    ) -> None:
+        payload: dict[str, JsonValue] = {
+            "contract": contract.model_dump(mode="json"),
+            "model": contract.model,
+            "prompt_version": contract.prompt_version,
+            "rubric_version": contract.rubric_version,
+        }
+        if turn is not None:
+            payload["input_summary"] = message[:200]
+            payload["coach_note"] = turn.note
+        self._event(type_, group, contract.participant_id, payload)
+
+    def edit_contract(self, player_id: str, changes: dict[str, object]) -> GoalContract:
+        """Apply the player's edits to a proposed contract, re-validated; points unchanged.
+
+        Args:
+            player_id: The player.
+            changes: Any of ``goal_statement``, ``baseline_value``, ``target_value``,
+                ``unit`` and ``milestone_targets``.
+
+        Returns:
+            The edited contract.
+
+        Raises:
+            GameError: If there is no contract to edit, it is locked, or the edit is not
+                a fair contract.
+        """
+        self.intake_player(player_id)
+        group = self.group()
+        stored = self.player(player_id)
+        current = stored.record.contract
+        if current is None:
+            raise GameError("NO_CONTRACT", "Talk to the coach first; there is no contract yet.")
+        try:
+            statement = str(changes.get("goal_statement") or current.goal_statement).strip()
+            raw_targets = changes.get("milestone_targets")
+            targets = (
+                [parse_number(v) for v in cast(list[object], raw_targets)]
+                if isinstance(raw_targets, list)
+                else [m.target for m in current.milestones]
+            )
+            draft = CoachDraft(
+                goal_type=current.goal_type,
+                goal_statement=statement,
+                baseline_value=parse_number(changes.get("baseline_value", current.baseline.value)),
+                unit=str(changes.get("unit") or current.baseline.unit),
+                target_value=parse_number(changes.get("target_value", current.target.value)),
+                milestone_targets=targets,
+                evidence_policy=current.evidence_policy,
+                comparability=current.comparability,
+            )
+            contract = build_contract(
+                participant_id=player_id,
+                draft=draft,
+                rubric=self.rubric,
+                duration_days=group.terms.duration_days,
+                model=current.model,
+            )
+        except (ContractInvalidError, ValidationError) as error:
+            raise GameError("CONTRACT_INVALID", _first_line(error), 422) from error
+        with self.db.transaction():
+            self._save_player(stored, stored.record.model_copy(update={"contract": contract}))
+            self._contract_event(
+                EventType.CONTRACT_PROPOSED, group, contract, "edited by the player"
+            )
+        return contract
+
+    def lock_contract(self, player_id: str) -> GoalContract:
+        """Lock the player's contract; when every seat is locked, the group is ready.
+
+        Args:
+            player_id: The player.
+
+        Returns:
+            The locked contract.
+
+        Raises:
+            GameError: If there is no contract or it is already locked.
+        """
+        self.intake_player(player_id)
+        stored_group = self._current()
+        group = stored_group.record
+        stored = self.player(player_id)
+        current = stored.record.contract
+        if current is None:
+            raise GameError("NO_CONTRACT", "Talk to the coach first; there is no contract yet.")
+        locked = current.model_copy(update={"status": ContractStatus.LOCKED})
+        with self.db.transaction():
+            self._save_player(
+                stored,
+                stored.record.model_copy(update={"contract": locked, "intake": IntakeState.LOCKED}),
+            )
+            self._contract_event(EventType.CONTRACT_LOCKED, group, locked)
+            players = self.players()
+            if len(players) >= group.terms.min_players and all(
+                p.intake == IntakeState.LOCKED for p in players
+            ):
+                self._save_group(
+                    stored_group,
+                    group.model_copy(update={"status": GroupStatus.READY_FOR_ACCEPTANCE}),
+                )
+                self._event(
+                    EventType.GROUP_READY,
+                    group,
+                    group.id,
+                    {"players": len(players), "rubric_version": group.rubric_version},
+                )
+        return locked
 
     # Time
 

@@ -341,6 +341,11 @@ def _model(observed: Observed) -> tuple[bool, str]:
 def _provider(observed: Observed) -> tuple[bool, str]:
     provider = effective(observed, "MODEL_PROVIDER")
     keyed = effective(observed, "FEATHERLESS_API_KEY") is not None
+    openai_keyed = effective(observed, "OPENAI_API_KEY") is not None
+    if provider == "openai" or (provider is None and openai_keyed):
+        if not openai_keyed:
+            return False, "MODEL_PROVIDER=openai needs OPENAI_API_KEY in .env"
+        return True, f"openai, then featherless: {_set(observed, 'OPENAI_API_KEY')}"
     if provider == "featherless" or (provider is None and keyed):
         if not keyed:
             return False, "MODEL_PROVIDER=featherless needs FEATHERLESS_API_KEY in .env"
@@ -354,7 +359,7 @@ def _provider(observed: Observed) -> tuple[bool, str]:
             "automatic: the local server if it answers, else the deterministic ranking "
             "(no FEATHERLESS_API_KEY)"
         )
-    return False, f"MODEL_PROVIDER {provider} is not featherless, local or none"
+    return False, f"MODEL_PROVIDER {provider} is not openai, featherless, local or none"
 
 
 def _fresh(stored: Stored | None, backend: str) -> tuple[bool, str]:

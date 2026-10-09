@@ -145,9 +145,9 @@ def test_featherless_without_its_key_refuses_to_start() -> None:
 
 
 def test_an_unknown_model_provider_is_refused() -> None:
-    """Only the three named providers exist."""
+    """Only the four named providers exist."""
     with pytest.raises(ValueError, match="model_provider"):
-        Settings(model_provider="openai")  # pyright: ignore[reportArgumentType]
+        Settings(model_provider="anthropic")  # pyright: ignore[reportArgumentType]
 
 
 def test_from_env_names_a_malformed_value_without_echoing_it(
@@ -155,7 +155,7 @@ def test_from_env_names_a_malformed_value_without_echoing_it(
 ) -> None:
     """A value that does not parse is one line naming the variable, never the value."""
     monkeypatch.setenv("REAP_ENROLLMENT_ID", "sk_pasted_in_the_wrong_place")
-    monkeypatch.setenv("MODEL_PROVIDER", "openai")
+    monkeypatch.setenv("MODEL_PROVIDER", "anthropic")
     with pytest.raises(ConfigError) as refused:
         Settings.from_env()
     message = str(refused.value)

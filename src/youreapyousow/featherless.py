@@ -1,15 +1,16 @@
 """Chat completions over an OpenAI-compatible endpoint: Featherless, or any other.
 
-The coach (GLM 5.3 Flash) and the evidence reader (Qwen3-VL) both call Featherless
-through this client. The client only talks; what a reply may do is decided elsewhere.
+The coach and the evidence reader call OpenAI first and Featherless after, both through
+this client. The client only talks; what a reply may do is decided elsewhere.
 """
 
 from typing import Literal, Protocol
 
 import httpx
-from pydantic import SecretStr
+from pydantic import JsonValue, SecretStr
 
 type JsonMode = Literal["structured", "prompt"]
+type Message = dict[str, JsonValue]
 
 FEATHERLESS_JSON_MODE: JsonMode = "prompt"
 FEATHERLESS_REASONING_EFFORT = "low"
@@ -24,7 +25,7 @@ class ChatClient(Protocol):
 
     model: str
 
-    async def complete(self, messages: list[dict[str, str]]) -> str:
+    async def complete(self, messages: list[Message]) -> str:
         """Complete a chat.
 
         Args:
@@ -49,6 +50,8 @@ class OpenAICompatibleClient:
         timeout_s: float = 30.0,
         json_mode: JsonMode = "structured",
         reasoning_effort: str | None = None,
+        temperature: float | None = 0,
+        response_format: dict[str, JsonValue] | None = None,
     ) -> None:
         """Configure the client.
 
@@ -62,6 +65,9 @@ class OpenAICompatibleClient:
                 ``response_format``; ``prompt`` leaves the shape to the system prompt.
             reasoning_effort: Sent as ``reasoning_effort`` to a reasoning model when
                 set; left out otherwise.
+            temperature: Sent when set; left out for models that take only their own.
+            response_format: Sent in place of the JSON-object mode when set, such as a
+                ``json_schema`` for structured output.
         """
         self._http = http
         self._url = f"{base_url.rstrip('/')}/chat/completions"
@@ -70,8 +76,10 @@ class OpenAICompatibleClient:
         self._timeout_s = timeout_s
         self._json_mode = json_mode
         self._reasoning_effort = reasoning_effort
+        self._temperature = temperature
+        self._response_format = response_format
 
-    async def complete(self, messages: list[dict[str, str]]) -> str:
+    async def complete(self, messages: list[Message]) -> str:
         """Ask the endpoint for a JSON reply.
 
         Args:
@@ -87,12 +95,12 @@ class OpenAICompatibleClient:
         headers: dict[str, str] = {}
         if self._api_key is not None:
             headers["Authorization"] = f"Bearer {self._api_key.get_secret_value()}"
-        body: dict[str, object] = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": 0,
-        }
-        if self._json_mode == "structured":
+        body: dict[str, object] = {"model": self.model, "messages": messages}
+        if self._temperature is not None:
+            body["temperature"] = self._temperature
+        if self._response_format is not None:
+            body["response_format"] = self._response_format
+        elif self._json_mode == "structured":
             body["response_format"] = {"type": "json_object"}
         if self._reasoning_effort is not None:
             body["reasoning_effort"] = self._reasoning_effort

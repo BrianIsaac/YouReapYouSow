@@ -9,10 +9,11 @@ Featherless key only when Featherless is named.
 """
 
 from collections.abc import Mapping
+from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr, ValidationError
+from pydantic import Field, SecretStr, ValidationError
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from youreapyousow.clock import utc_now
@@ -23,9 +24,11 @@ from youreapyousow.reap.client import SG_SANDBOX_URL
 from youreapyousow.reap.mock.engine import AuthorizationMode
 from youreapyousow.reap.models import UuidId
 
-type ModelProvider = Literal["featherless", "local", "none"]
+type ModelProvider = Literal["openai", "featherless", "local", "none"]
 
 FEATHERLESS_BASE_URL = "https://api.featherless.ai/v1"
+FEATHERLESS_VISION_MODEL = "Qwen/Qwen3-VL-8B-Instruct"
+OPENAI_BASE_URL = "https://api.openai.com/v1"
 FEATHERLESS_MODEL = "zai-org/GLM-5.3-Flash"
 LOCAL_MODEL_BASE_URL = "http://127.0.0.1:8090/v1"
 LOCAL_MODEL = "gemma-4-12b-it"
@@ -79,6 +82,22 @@ class Settings(BaseSettings):
         local_model_timeout_s: One local call's timeout.
         model_budget_s: What one choice may spend on the model across every provider
             before the deterministic strategy decides instead.
+        openai_api_key: OpenAI key; with it set and no ``MODEL_PROVIDER``, the coach and
+            the photo reads ask OpenAI first and Featherless after.
+        openai_base_url: OpenAI's API root.
+        coach_model: The coach's first model on OpenAI.
+        coach_fallback_model: The coach's second model on OpenAI.
+        vision_model: The photo reader's first model on OpenAI.
+        vision_fallback_model: The photo reader's second model on OpenAI.
+        featherless_vision_model: The photo reader on Featherless, the last fallback.
+        openai_timeout_s: One OpenAI call's timeout.
+        demo_clock: Demo time: real seconds per challenge day (a minute is a week).
+        entry_amount: One entry, in test USDC.
+        vault_balance_usdc: The vault's balance when it cannot be read from Kwal.
+        enrolment_window_s: Real seconds from a group opening to its deadline.
+        dispute_window_s: Real seconds the dispute window stays open.
+        duration_days: The challenge's length in challenge days.
+        evidence_dir: Where check-in evidence is stored.
     """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_ignore_empty=True)
@@ -109,6 +128,37 @@ class Settings(BaseSettings):
     local_model: str = LOCAL_MODEL
     local_model_timeout_s: float = 8.0
     model_budget_s: float = 8.0
+    openai_api_key: SecretStr | None = None
+    openai_base_url: str = OPENAI_BASE_URL
+    coach_model: str = "gpt-5.6-terra"
+    coach_fallback_model: str = "gpt-5.6-sol"
+    vision_model: str = "gpt-5.6-terra"
+    vision_fallback_model: str = "gpt-6-luna"
+    featherless_vision_model: str = FEATHERLESS_VISION_MODEL
+    openai_timeout_s: float = 25.0
+    demo_clock: float = Field(default=60 / 7, gt=0)
+    entry_amount: Decimal = Field(default=Decimal("25.00"), gt=0)
+    vault_balance_usdc: Decimal = Field(default=Decimal("100.00"), ge=0)
+    enrolment_window_s: float = Field(default=3600.0, gt=0)
+    dispute_window_s: float = Field(default=20.0, ge=0)
+    duration_days: int = Field(default=28, ge=4)
+    evidence_dir: Path = Path("var/evidence")
+
+    @property
+    def chat_provider(self) -> ModelProvider:
+        """Return who answers the coach and the photo reads first.
+
+        Returns:
+            ``MODEL_PROVIDER`` when set; else ``openai`` when its key is set, else
+            ``featherless`` when its key is set, else ``none``.
+        """
+        if self.model_provider is not None:
+            return self.model_provider
+        if self.openai_api_key is not None:
+            return "openai"
+        if self.featherless_api_key is not None:
+            return "featherless"
+        return "none"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -224,6 +274,8 @@ class Settings(BaseSettings):
         Raises:
             ConfigError: If Featherless is named without its key.
         """
+        if self.model_provider == "openai" and self.openai_api_key is None:
+            raise ConfigError("MODEL_PROVIDER=openai needs OPENAI_API_KEY in .env")
         if self.model_provider == "featherless" and self.featherless_api_key is None:
             raise ConfigError(
                 "MODEL_PROVIDER=featherless needs FEATHERLESS_API_KEY in .env; add the key, "
