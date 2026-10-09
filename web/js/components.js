@@ -222,6 +222,7 @@ export function rubricCard(rubric) {
 
 const LEDGER_TYPE_LABEL = {
   "group.opened": "Group opened",
+  "group.ready": "Agreement open",
   "entry.reserved": "Entry reserved",
   "entry.refunded": "Entry refunded",
   "contract.proposed": "Contract proposed",

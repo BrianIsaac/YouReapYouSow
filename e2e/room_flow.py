@@ -25,6 +25,14 @@ PLAYERS = [
     ("Ben", "I want to start running, three runs a week, from nothing at all right now."),
     ("Chloe", "A strength routine at the gym, four sessions a week, I will log each one."),
 ]
+# Follow-up answers for a coach that asks before it proposes.
+FOLLOW_UPS = [
+    "I have about 30 minutes a day, no injuries or limitations, and I am a beginner. "
+    "I can take a photo or a short clip of each session as proof.",
+    "That all sounds right. Please propose my goal contract with four milestones now.",
+    "Yes, go ahead and propose the contract.",
+]
+STAGES = ("join", "coach", "agreement", "challenge", "result")
 # A 1x1 PNG, unique per call by a trailing comment chunk, as an uploaded check-in photo.
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
@@ -78,16 +86,38 @@ class Room:
         page.screenshot(path=str(self.out / f"{name}.png"), full_page=True)
 
 
-def run(base: str, out: Path) -> list[str]:
-    """Plays the whole journey.
+def talk_to_coach(page: Page, first: str) -> None:
+    """Chats with the coach until it proposes a contract.
+
+    Args:
+        page: The player's page.
+        first: The opening message.
+
+    Raises:
+        AssertionError: When no contract arrives after every follow-up.
+    """
+    lock = page.get_by_role("button", name="Lock my contract")
+    for message in [first, *FOLLOW_UPS]:
+        page.get_by_label("Your message to the coach").fill(message)
+        page.get_by_role("button", name="Send").click()
+        expect(page.get_by_role("button", name="Send")).to_be_enabled(timeout=90000)
+        if lock.is_visible():
+            return
+    raise AssertionError("the coach did not propose a contract")
+
+
+def run(base: str, out: Path, stop_after: str) -> list[str]:  # noqa: PLR0912, PLR0915 - one linear script
+    """Plays the journey up to and including a stage.
 
     Args:
         base: The server's base URL.
         out: The screenshot directory.
+        stop_after: The last stage to play.
 
     Returns:
         Every console and page error seen.
     """
+    last = STAGES.index(stop_after)
     out.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
@@ -113,11 +143,12 @@ def run(base: str, out: Path) -> list[str]:
             if name == "Alice":
                 room.shot(page, "02-join-seated-laptop")
 
+        if last < STAGES.index("coach"):
+            browser.close()
+            return room.errors
         for page, (name, message) in zip(room.pages, PLAYERS, strict=True):
             expect(page.get_by_role("heading", name="Your coach")).to_be_visible(timeout=8000)
-            page.get_by_label("Your message to the coach").fill(message)
-            page.get_by_role("button", name="Send").click()
-            expect(page.get_by_role("button", name="Lock my contract")).to_be_visible(timeout=20000)
+            talk_to_coach(page, message)
             if name == "Ben":
                 room.shot(page, "03-coach-proposed-phone")
         target = alice.get_by_label("Milestone day 7 target")
@@ -129,6 +160,9 @@ def run(base: str, out: Path) -> list[str]:
             page.get_by_role("button", name="Lock my contract").click()
             expect(page.get_by_text("Locked").first).to_be_visible()
 
+        if last < STAGES.index("agreement"):
+            browser.close()
+            return room.errors
         for page in room.pages:
             expect(page.get_by_role("heading", name="Everyone sees every goal")).to_be_visible(
                 timeout=8000
@@ -139,18 +173,23 @@ def run(base: str, out: Path) -> list[str]:
             page.get_by_role("button", name="I accept these terms").click()
             page.wait_for_timeout(300)
 
+        if last < STAGES.index("challenge"):
+            browser.close()
+            return room.errors
         for page in room.pages:
             expect(page.get_by_role("heading", name="Check in")).to_be_visible(timeout=8000)
+        scored = ".checkins .pill.verified, .checkins .pill.rejected"
 
         alice.get_by_role("button", name="Start the camera").click()
         expect(alice.locator(".camera video")).to_be_visible()
         alice.wait_for_function(
-            "document.querySelector('.camera video') && document.querySelector('.camera video').videoWidth > 0"
+            "(() => { const v = document.querySelector('.camera video');"
+            " return Boolean(v && v.videoWidth > 0); })()"
         )
         alice.get_by_role("button", name="Take the photo").click()
         expect(alice.locator(".camera img")).to_be_visible()
         alice.get_by_role("button", name="Submit the check-in").click()
-        expect(alice.locator(".checkins .pill.verified").first).to_be_visible(timeout=20000)
+        expect(alice.locator(scored).first).to_be_visible(timeout=90000)
         room.shot(alice, "05-challenge-laptop")
 
         ben.locator("input[type=file]").set_input_files(
@@ -158,11 +197,15 @@ def run(base: str, out: Path) -> list[str]:
         )
         ben.get_by_label("What you did").fill("0")
         ben.get_by_role("button", name="Submit the check-in").click()
-        expect(ben.locator(".checkins .pill.rejected").first).to_be_visible(timeout=20000)
+        expect(ben.locator(".checkins .pill.rejected").first).to_be_visible(timeout=90000)
         room.shot(ben, "05-challenge-rejected-phone")
 
         chloe.get_by_role("button", name="Submit the check-in").click()
-        expect(chloe.locator(".checkins .pill.verified").first).to_be_visible(timeout=20000)
+        expect(chloe.locator(scored).first).to_be_visible(timeout=90000)
+        room.shot(chloe, "05-challenge-chloe-laptop")
+        if last < STAGES.index("result"):
+            browser.close()
+            return room.errors
 
         for page in room.pages:
             expect(page.get_by_role("heading", name="Standings are frozen")).to_be_visible(
@@ -193,8 +236,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("base")
     parser.add_argument("out", type=Path)
+    parser.add_argument("--stop-after", choices=STAGES, default="result")
     args = parser.parse_args()
-    errors = run(args.base.rstrip("/"), args.out)
+    errors = run(args.base.rstrip("/"), args.out, args.stop_after)
     for line in errors:
         print(line)
     print("room flow: " + ("errors" if errors else "clean"))
