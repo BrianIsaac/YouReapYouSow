@@ -137,7 +137,7 @@ def run(base: str, out: Path, stop_after: str) -> list[str]:  # noqa: PLR0912, P
             page.goto(f"{base}/#/join")
             page.get_by_label("Your name, as the room will see it").fill(name)
             page.get_by_role("checkbox").check()
-            page.get_by_role("button", name="Reserve my seat").click()
+            page.get_by_role("button", name="Join for").click()
             seated = page.get_by_text(f"You are in, {name}")
             expect(seated.or_(page.get_by_role("heading", name="Your coach"))).to_be_visible()
             if name == "Alice":
@@ -217,6 +217,8 @@ def run(base: str, out: Path, stop_after: str) -> list[str]:  # noqa: PLR0912, P
         ben.get_by_role("button", name="Send the dispute").click()
         expect(ben.locator(".pill.disputed").first).to_be_visible(timeout=8000)
         room.shot(ben, "06-dispute-window-phone")
+        alice.get_by_role("button", name="Reinstate the points").first.click()
+        expect(alice.locator(".checkins .pill.disputed")).to_have_count(0, timeout=8000)
 
         finish = alice.get_by_role("button", name="Name the winner and buy the prize")
         expect(finish).to_be_enabled(timeout=120000)
