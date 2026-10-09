@@ -2,6 +2,8 @@
 
 Compete on your own goals, stay accountable together, and earn the item your group is playing for.
 
+Demo video (2:39): https://youtu.be/BBV-2KM2ojM
+
 ## Run it
 
 You need [uv](https://docs.astral.sh/uv/); Python 3.12 is pinned and installed by uv.
