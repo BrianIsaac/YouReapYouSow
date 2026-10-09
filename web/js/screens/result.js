@@ -200,8 +200,8 @@ function approvalBlock(state, result) {
       h(
         "div",
         { class: "stack" },
-        h("p", { class: "small muted" }, "Scan the code with the card holder's phone and confirm with its passkey. The order lands here on its own."),
-        h("div", { class: "stack" }, h("div", { class: "label" }, "The page closes in"), countdown(p.approval_expires_at, { done: "The page has closed" }), p.approval_expires_at ? h("p", { class: "tiny muted" }, `At ${timeOfDay(p.approval_expires_at)}.`) : null),
+        h("p", { class: "small muted" }, "Scan the code with the card holder's phone and confirm with its passkey before the quote expires. The order lands here on its own."),
+        h("div", { class: "stack" }, h("div", { class: "label" }, "Approve within"), countdown(p.approval_expires_at, { done: "Time is up" }), p.approval_expires_at ? h("p", { class: "tiny muted" }, `At ${timeOfDay(p.approval_expires_at)}.`) : null),
         p.approval_url ? h("a", { class: "btn ghost", href: p.approval_url, target: "_blank", rel: "noopener" }, "Open the approval page") : null,
       ),
     ),
@@ -219,7 +219,7 @@ function retryBlock(ui) {
   return h(
     "section",
     { class: "card stack" },
-    h("div", { class: "eyebrow" }, "The approval page closed"),
+    h("div", { class: "eyebrow" }, "The time to approve ran out"),
     h("p", { class: "lead" }, "The card holder did not approve the charge in time, so nothing was bought."),
     ui.err,
     button,

@@ -70,6 +70,8 @@ async def test_a_checkout_needing_approval_waits_with_the_page(runtime: Runtime)
     assert waiting.approval_url.endswith(waiting.checkout_id)
     assert waiting.approval_expires_at is not None
     assert waiting.approval_expires_at > _clock(runtime)()
+    # The mock's quote lives 2 minutes and its page 15: the quote's expiry is the deadline.
+    assert waiting.approval_expires_at <= _clock(runtime)() + timedelta(minutes=2)
     assert waiting.intent_id is not None
     assert waiting.quote_final_amount == Decimal("57.49")
     assert waiting.gate is not None
@@ -117,15 +119,14 @@ async def test_an_approved_checkout_becomes_the_order(runtime: Runtime) -> None:
 
 
 async def test_an_expired_checkout_fails_and_the_group_stays_final(runtime: Runtime) -> None:
-    """The page expired unused: failed with why, the pool still reserved for a retry."""
+    """Reap expired the checkout unapproved: failed with why, the pool still reserved."""
     buyer, waiting = await _awaiting(runtime)
-    assert waiting.approval_expires_at is not None
-    _clock(runtime).advance(seconds=(waiting.approval_expires_at - _clock(runtime)()).seconds + 1)
+    _clock(runtime).advance(seconds=15 * 60 + 1)
     failed = await buyer.follow(waiting, now=_clock(runtime)())
     assert failed.status == "FAILED"
     assert failed.step == "approval"
     assert failed.error is not None
-    assert "expired" in failed.error
+    assert failed.error.startswith("No approval came before ")
     group = runtime.game.record_purchase(failed)
     assert group.status == GroupStatus.FINALIZED
     assert runtime.game.pool().entries == 3
@@ -142,7 +143,7 @@ async def test_a_page_past_its_expiry_fails_even_while_reap_still_waits(runtime:
     failed = await buyer.follow(lapsed, now=_clock(runtime)())
     assert failed.status == "FAILED"
     assert failed.error is not None
-    assert "expired unused" in failed.error
+    assert "the quote and the checkout expired" in failed.error
 
 
 async def test_retry_opens_a_fresh_checkout_on_a_fresh_quote(runtime: Runtime) -> None:

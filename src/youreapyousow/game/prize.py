@@ -7,8 +7,10 @@ quote's ``finalAmount``, the claim, the checkout under the claim's idempotency k
 reads until the order id. Every step lands on the ledger.
 
 When Reap answers the checkout with its hosted approval page, the purchase waits on the
-card holder: it carries the page and its expiry, and ``follow`` re-reads the checkout
-until it completes, fails or the page expires unused.
+card holder: it carries the page and the deadline to approve by, and ``follow`` re-reads
+the checkout until it completes, fails or the deadline passes. The deadline is the earlier
+of the page's expiry and the quote's: Reap fails the checkout once its quote expires, about
+five minutes in, although the page itself is valid for fifteen.
 
 The preview quote at start-up is a plain read of the catalogue and a quote, with no
 objective and no checkout, so the pool's disclosure can show the landed price.
@@ -314,7 +316,7 @@ class PrizeBuyer:
         on_step(state)
         done = await control.execute_purchase(intent.id)
         if done.state == IntentState.AWAITING_APPROVAL and done.checkout_id is not None:
-            waiting = await self._awaiting(state, done.checkout_id)
+            waiting = await self._awaiting(state, done.checkout_id, cheapest.expires_at)
             on_step(waiting)
             return waiting
         if done.state != IntentState.COMPLETED or done.order_id is None:
@@ -341,15 +343,18 @@ class PrizeBuyer:
         on_step(bought)
         return bought
 
-    async def _awaiting(self, state: PrizePurchase, checkout_id: str) -> PrizePurchase:
+    async def _awaiting(
+        self, state: PrizePurchase, checkout_id: str, quote_expires_at: datetime
+    ) -> PrizePurchase:
         """Read the checkout's approval page: the card holder's one tap.
 
         Args:
             state: The purchase at the checkout step.
             checkout_id: The checkout awaiting approval.
+            quote_expires_at: When the checkout's quote expires, and Reap fails it.
 
         Returns:
-            The purchase awaiting approval, with the page and its expiry when readable.
+            The purchase awaiting approval, with the page when readable and the deadline.
         """
         url: str | None = None
         expires_at: datetime | None = None
@@ -363,13 +368,14 @@ class PrizeBuyer:
         if action is not None:
             url = action.url
             expires_at = datetime.fromisoformat(action.expires_at) if action.expires_at else None
+        deadline = quote_expires_at if expires_at is None else min(expires_at, quote_expires_at)
         return state.model_copy(
             update={
                 "status": "AWAITING_APPROVAL",
                 "step": "approval",
                 "checkout_id": checkout_id,
                 "approval_url": url,
-                "approval_expires_at": expires_at,
+                "approval_expires_at": deadline,
             }
         )
 
@@ -400,8 +406,8 @@ class PrizeBuyer:
             return purchase.model_copy(
                 update={
                     "status": "FAILED",
-                    "error": "The approval page expired unused at "
-                    f"{expires_at:%H:%M} UTC; the agent can open a fresh checkout.",
+                    "error": f"No approval came before {expires_at:%H:%M:%S} UTC, when the "
+                    "quote and the checkout expired; the agent can open a fresh checkout.",
                 }
             )
         return purchase
@@ -423,13 +429,14 @@ class PrizeBuyer:
                     "approval_url": None,
                 }
             )
-        return purchase.model_copy(
-            update={
-                "status": "FAILED",
-                "step": "approval",
-                "error": f"The checkout ended {intent.state.value} before the order was placed.",
-            }
-        )
+        deadline = purchase.approval_expires_at
+        error = f"The checkout ended {intent.state.value} before the order was placed."
+        if deadline is not None and now >= deadline:
+            error = (
+                f"No approval came before {deadline:%H:%M:%S} UTC, when the quote and the "
+                "checkout expired; the agent can open a fresh checkout."
+            )
+        return purchase.model_copy(update={"status": "FAILED", "step": "approval", "error": error})
 
     async def retry(
         self,

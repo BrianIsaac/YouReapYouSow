@@ -966,7 +966,7 @@ class Room:
             "Checkout opened on Reap's sandbox; waiting for the card holder's approval. "
             f"Checkout {checkout_id}.",
         )
-        expires = utcnow() + (timedelta(minutes=-1) if lapsed else timedelta(minutes=15))
+        expires = utcnow() + (timedelta(minutes=-1) if lapsed else timedelta(minutes=5))
         purchase: dict[str, Any] = {
             "status": "AWAITING_APPROVAL",
             "step": "approval",
@@ -992,8 +992,8 @@ class Room:
             purchase["status"] = "FAILED"
             purchase["approval_url"] = None
             purchase["error"] = (
-                f"The approval page expired unused at {expires:%H:%M} UTC; the agent can "
-                "open a fresh checkout."
+                f"No approval came before {expires:%H:%M:%S} UTC, when the quote and the "
+                "checkout expired; the agent can open a fresh checkout."
             )
             self.append(
                 "prize.purchase_failed", "grp_main", f"Prize purchase failed: {purchase['error']}"

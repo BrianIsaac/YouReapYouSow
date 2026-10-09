@@ -64,10 +64,11 @@ while the enrolment is not ACTIVE (the sandbox refuses any checkout without one)
 buys on the local mock through the same gate and says so on the result.
 
 On the sandbox the checkout waits on the card holder: Reap answers it with a hosted approval
-page (valid 15 minutes, single use) that asks for the passkey on the card holder's own
-phone. The purchase reads `AWAITING_APPROVAL`, the result screen shows the page as a QR code
-with its countdown, and every poll of the state re-reads the checkout until the order lands
-or the page expires. After an expiry, `POST /api/drops/{id}/purchase/retry` opens a fresh
+page (single use) that asks for the passkey on the card holder's own phone. The page says 15
+minutes, but Reap fails the checkout when its quote expires, about five minutes in, so the
+deadline shown is the earlier of the two. The purchase reads `AWAITING_APPROVAL`, the result
+screen shows the page as a QR code with that countdown, and every poll of the state re-reads
+the checkout until the order lands or the deadline passes. After an expiry, `POST /api/drops/{id}/purchase/retry` opens a fresh
 checkout on a fresh quote through the same gate.
 
 ## The API
