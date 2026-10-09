@@ -3,20 +3,33 @@
 
 import { h, fill, act, errorLine, showError, pill, countdown, timeOfDay } from "../dom.js";
 import { api } from "../api.js";
-import { progressRing, milestoneList, dueMilestone, standingsTable, demoClockNote, ledgerTail, EVIDENCE_LABEL } from "../components.js";
+import { milestoneList, dueMilestone, standingsTable, demoClockNote, ledgerTail, playersBand, EVIDENCE_LABEL } from "../components.js";
+
+// Check-ins already shown, so a new one can arrive with a flash and its points can pop.
+const seenEvents = new Set();
+let eventsPrimed = false;
+
+export function markArrivals(events) {
+  const fresh = new Set(eventsPrimed ? events.filter((e) => !seenEvents.has(`${e.event_id}:${e.state}`)).map((e) => e.event_id) : []);
+  events.forEach((e) => seenEvents.add(`${e.event_id}:${e.state}`));
+  eventsPrimed = true;
+  return fresh;
+}
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
 export function mount(ctx) {
   const el = h("div", { class: "stack-lg" });
-  const header = h("section", { class: "grid two" });
+  const header = h("section", { class: "grid two", style: { alignItems: "stretch" } });
+  const band = h("section", { class: "card", "aria-label": "Every player's progress" });
   const body = h("div", { class: "grid two" });
   const left = h("div", { class: "stack-lg" });
   const right = h("div", { class: "stack-lg" });
   body.append(left, right);
-  el.append(header, body);
+  el.append(header, band, body);
 
   let events = [];
+  let arrivals = new Set();
   let latest = null;
   let pendingRow = null;
   let ctxNow = ctx;
@@ -49,6 +62,7 @@ export function mount(ctx) {
     try {
       const res = await api.events(ctxNow.me ? ctxNow.meId : null);
       events = (res && res.events) || [];
+      arrivals = markArrivals(events);
     } catch {
       /* the next poll retries */
     }
@@ -59,12 +73,14 @@ export function mount(ctx) {
     ctxNow = c;
     const g = c.state.group;
     fill(header, headerBlock(c));
+    fill(band, playersBand(c.state, c.meId));
     if (c.me) {
       fill(progressSlot, progressBlock(c, events));
       checkin.update(c, events);
-      fill(eventsSlot, eventsBlock(events, latest, pendingRow));
+      fill(eventsSlot, eventsBlock(events, latest, pendingRow, arrivals));
+      arrivals = new Set();
     }
-    fill(standingsSlot, h("div", { class: "row between" }, h("h2", null, "Standings"), g.status === "ACTIVE" ? pill("PENDING", "Live") : pill("LOCKED", "Frozen")), standingsTable(c.state, c.meId));
+    fill(standingsSlot, h("div", { class: "row between" }, h("h2", null, "Standings"), g.status === "ACTIVE" ? h("span", { class: "pill accent" }, "Live") : pill("LOCKED", "Frozen")), standingsTable(c.state, c.meId));
     fill(feedSlot, ledgerTail(c.state, { title: "What just happened" }));
   }
 
@@ -90,16 +106,16 @@ function headerBlock(ctx) {
   return [
     h(
       "div",
-      { class: "stack" },
+      { class: "stack", style: { alignSelf: "end" } },
       h("h1", null, g.title),
       h("div", { class: "row" }, day !== null ? h("span", { class: "lead" }, `Day ${Math.floor(day)} of ${g.duration_days}`) : null, demoClockNote(state)),
     ),
     h(
       "div",
-      { class: "card stack" },
-      h("div", { class: "eyebrow" }, "Submissions close in"),
+      { class: `block ${g.status === "ACTIVE" ? "field" : "night"} stack` },
+      h("div", { class: "label" }, g.status === "ACTIVE" ? "Submissions close in" : "Submissions"),
       countdown(g.ends_at, { done: "Closed" }),
-      h("p", { class: "small muted" }, `Ends at ${timeOfDay(g.ends_at)}, real time.`),
+      h("p", { class: "small muted" }, `At ${timeOfDay(g.ends_at)}, real time.`),
     ),
   ];
 }
@@ -113,32 +129,21 @@ function progressBlock(ctx, events) {
   return h(
     "div",
     { class: "stack" },
-    h(
-      "div",
-      { class: "row", style: { gap: "28px", alignItems: "center" } },
-      progressRing(me.score || 0, contract.total_max_points || 100),
-      h(
-        "div",
-        { class: "stack", style: { flex: "1", minWidth: "200px" } },
-        h("div", { class: "eyebrow" }, "Your goal"),
-        h("h2", null, contract.goal_statement),
-        h("p", { class: "muted" }, `From ${contract.baseline.value} to ${contract.target.value} ${unit}`),
-        due
-          ? h(
-              "div",
-              { class: "milestone due" },
-              h("span", { class: "when" }, "Due now"),
-              h("span", null, h("b", null, `${due.target} ${unit}`), h("span", { class: "muted small" }, `  day ${due.day} milestone`)),
-              h("span", { class: "pts" }, `${due.max_points} pts`),
-            )
-          : h("p", null, pill("VERIFIED", "Every milestone verified")),
-      ),
-    ),
+    due
+      ? h(
+          "div",
+          { class: "block wheat" },
+          h("div", { class: "label" }, `Due now: your day ${due.day} milestone, worth ${due.max_points} points`),
+          h("div", { class: "row", style: { alignItems: "baseline", gap: "14px", marginTop: "8px" } }, h("span", { class: "numeral", style: { fontSize: "clamp(3.6rem, 12vw, 6rem)" } }, due.target), h("span", { class: "label", style: { fontSize: "1.3rem" } }, unit)),
+        )
+      : h("div", { class: "block field" }, h("h2", null, "Every milestone verified")),
+    h("h2", null, contract.goal_statement),
+    h("p", { class: "muted" }, `From ${contract.baseline.value} to ${contract.target.value} ${unit}, ${me.score || 0} of ${contract.total_max_points || 100} points so far.`),
     milestoneList(contract, { events, showWindows: true }),
   );
 }
 
-function eventsBlock(events, latest, pendingRow) {
+function eventsBlock(events, latest, pendingRow, arrivals) {
   const list = events.slice().sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   return [
     h("h2", null, "Your check-ins"),
@@ -155,17 +160,17 @@ function eventsBlock(events, latest, pendingRow) {
                 h("div", { class: "why-line" }, pendingRow.kind === "log" ? "Recording your log against the rubric." : "Reading your evidence and scoring it by the rubric."),
               )
             : null,
-          list.map((e) => eventRow(e, latest && latest.event_id === e.event_id)),
+          list.map((e) => eventRow(e, latest && latest.event_id === e.event_id, arrivals.has(e.event_id))),
         )
       : h("p", { class: "muted" }, "No check-ins yet. Your first one is waiting."),
   ];
 }
 
-export function eventRow(e, highlight) {
+export function eventRow(e, highlight, arrive = false) {
   const adv = e.advisory;
   return h(
     "li",
-    { class: `ci ${highlight ? "fresh" : ""}`.trim() },
+    { class: [`ci`, highlight ? "fresh" : "", arrive ? "arrive" : ""].join(" ").trim() },
     h(
       "div",
       null,

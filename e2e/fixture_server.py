@@ -664,6 +664,33 @@ class Room:
                 return e
         raise Refusal("UNKNOWN_EVENT", "No such check-in.", 404)
 
+    def review(self, event_id: str, reinstate: bool) -> dict[str, Any]:
+        """Records the reviewer's verdict on a disputed check-in.
+
+        Args:
+            event_id: The disputed score event.
+            reinstate: True to restore its points, False to reject it.
+
+        Returns:
+            The event.
+
+        Raises:
+            Refusal: When the event is unknown or not disputed.
+        """
+        self.need("DISPUTE_WINDOW")
+        for e in self.events:
+            if e["event_id"] == event_id and e["state"] == "DISPUTED":
+                e["state"] = "VERIFIED" if reinstate else "REJECTED"
+                if not reinstate:
+                    e["delta"] = 0
+                verdict = "reinstated" if reinstate else "rejected"
+                e["reason"] = f"Reviewed: {verdict}."
+                self.append(
+                    "score.reviewed", event_id, f"A reviewer {verdict} a disputed check-in."
+                )
+                return e
+        raise Refusal("UNKNOWN_EVENT", "No disputed check-in with that id.", 404)
+
     def finalize(self) -> dict[str, Any]:
         """Names the winner and simulates the agent's purchase.
 
@@ -944,6 +971,10 @@ class Handler(BaseHTTPRequestHandler):
                 body.get("event_id", ""),
                 body.get("reason", ""),
             )
+            self.send_json(200, {"event": event})
+        elif path == "/api/dispute/review":
+            body = self.read_json()
+            event = room.review(str(body.get("event_id", "")), bool(body.get("reinstate")))
             self.send_json(200, {"event": event})
         elif path == "/api/finalize":
             self.read_json()

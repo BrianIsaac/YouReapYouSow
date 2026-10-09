@@ -53,6 +53,7 @@ export const api = {
   checkin: (form) => request("POST", "/checkin", form),
   dispute: (playerId, eventId, reason) =>
     request("POST", "/dispute", { player_id: playerId, event_id: eventId, reason }),
+  reviewDispute: (eventId, reinstate) => request("POST", "/dispute/review", { event_id: eventId, reinstate }),
   finalize: () => request("POST", "/finalize", {}),
   reset: () => request("POST", "/reset", {}),
   ledger: (afterSeq = 0) => request("GET", `/ledger?after_seq=${afterSeq}`),

@@ -80,33 +80,26 @@ export function standingsTable(state, meId, rows) {
   if (!list.length) return h("p", { class: "muted" }, "No one has a seat yet.");
   const max = (state.rubric && state.rubric.total_points) || 100;
   return h(
-    "div",
-    { class: "table-scroll" },
-    h(
-      "table",
-      { class: "standings" },
-      h("thead", null, h("tr", null, h("th", null, "Rank"), h("th", null, "Player"), h("th", { class: "r" }, "Points"))),
-      h(
-        "tbody",
-        null,
-        list.map((row) => {
-          const pct = Math.min(100, (100 * (row.score || 0)) / max);
-          const first = row.rank === 1 && (row.score || 0) > 0;
-          return h(
-            "tr",
-            { class: [row.player_id === meId ? "me" : "", first ? "first" : ""].join(" ").trim() || null, style: { "--pct": `${pct}%` } },
-            h("td", { class: "rank" }, row.rank ?? "-"),
-            h(
-              "td",
-              null,
-              h("div", null, h("b", null, row.name), row.player_id === meId ? h("span", { class: "small" }, "  you") : null),
-              h("div", { class: "tiny muted" }, `${plural(row.verified_milestones || 0, "milestone")} verified`),
-            ),
-            h("td", { class: "r score num" }, row.score ?? 0),
-          );
-        }),
-      ),
-    ),
+    "ol",
+    { class: "standings", "aria-label": "Standings" },
+    list.map((row) => {
+      const pct = Math.min(100, (100 * (row.score || 0)) / max);
+      const first = row.rank === 1 && (row.score || 0) > 0;
+      return h(
+        "li",
+        { class: ["srow", row.player_id === meId ? "me" : "", first ? "first" : ""].join(" ").trim() },
+        h("span", { class: "rank" }, row.rank ?? "-"),
+        h(
+          "span",
+          { class: "who" },
+          h("b", null, row.name),
+          row.player_id === meId ? h("span", { class: "small muted" }, "  you") : null,
+          h("span", { class: "tiny muted", style: { display: "block" } }, `${plural(row.verified_milestones || 0, "milestone")} verified`),
+        ),
+        h("span", { class: "score num" }, row.score ?? 0),
+        h("span", { class: "sbar", "aria-hidden": "true" }, h("i", { style: { width: `${pct}%` } })),
+      );
+    }),
   );
 }
 
@@ -223,6 +216,7 @@ const LEDGER_TYPE_LABEL = {
   "group.started": "Challenge started",
   "score.recorded": "Score recorded",
   "score.disputed": "Score disputed",
+  "score.reviewed": "Dispute reviewed",
   "standings.frozen": "Standings frozen",
   "group.finalized": "Group finalised",
   "quote.landed": "Quote landed",
@@ -355,7 +349,7 @@ function countUp(el, from, to, ms) {
   requestAnimationFrame(step);
 }
 
-export function playersBand(state, meId) {
+export function playersBand(state, meId, { winnerId = null } = {}) {
   const players = (state.players || []).slice().sort((a, b) => a.seat - b.seat);
   const max = (state.rubric && state.rubric.total_points) || 100;
   const top = Math.max(0, ...players.map((p) => p.score || 0));
@@ -363,13 +357,13 @@ export function playersBand(state, meId) {
     "div",
     { class: "players-band" },
     players.map((p) => {
-      const lead = top > 0 && (p.score || 0) === top;
+      const lead = winnerId ? p.player_id === winnerId : top > 0 && (p.score || 0) === top;
       return h(
         "div",
         { class: `player ${p.player_id === meId ? "me" : ""}`.trim() },
         progressRing(p.score || 0, max, { key: p.player_id, lead }),
         h("div", { class: "who" }, p.name),
-        h("div", { class: "row", style: { justifyContent: "center" } }, lead ? h("span", { class: "pill lead" }, "Leading") : null, h("span", { class: "sub" }, `${plural(p.verified_milestones || 0, "milestone")} verified`)),
+        h("div", { class: "row", style: { justifyContent: "center" } }, lead ? h("span", { class: "pill lead" }, winnerId ? "Winner" : "Leading") : null, h("span", { class: "sub" }, `${plural(p.verified_milestones || 0, "milestone")} verified`)),
       );
     }),
   );

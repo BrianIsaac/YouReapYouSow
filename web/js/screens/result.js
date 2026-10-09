@@ -2,7 +2,10 @@
 
 import { h, fill, act, errorLine, showError, pill, countdown, money, msUntil, timeOfDay } from "../dom.js";
 import { api } from "../api.js";
-import { standingsTable, ledgerTail } from "../components.js";
+import { standingsTable, ledgerTail, playersBand, authorityBar } from "../components.js";
+
+// The purchase step last drawn as done, so newly done steps light up in sequence.
+let shownStep = -1;
 import { eventRow } from "./challenge.js";
 
 const STEPS = [
@@ -93,6 +96,7 @@ function build(ctx, ui) {
       pending ? h("p", { class: "lead" }, "Submissions are closed. Any player can dispute a score before the window ends; then the winner is named and the agent buys the prize.") : null,
     ),
     result && result.winner ? winnerBlock(state, result) : null,
+    h("section", { class: "card", "aria-label": "Every player's final points" }, playersBand(state, ctx.meId, { winnerId: result && result.winner ? result.winner.player_id : null })),
     h(
       "div",
       { class: "grid two" },
@@ -159,13 +163,16 @@ function buyingBlock() {
 
 function purchaseBlock(state, p) {
   const at = STEPS.findIndex(([id]) => id === p.step);
+  const doneUpTo = p.status === "PURCHASED" ? STEPS.length - 1 : at - 1;
+  const firstNew = shownStep;
+  shownStep = Math.max(shownStep, doneUpTo);
   const gate = p.gate || {};
   const gateCls = { allow: "verified", refuse: "rejected", escalate: "pending" }[gate.disposition] || "";
   const gateWord = { allow: "Allowed", refuse: "Refused", escalate: "Needs a person" }[gate.disposition] || "Not yet checked";
   return h(
     "section",
     { class: "card stack" },
-    h("div", { class: "row between" }, h("h2", null, "The prize purchase"), pill(p.status)),
+    h("div", { class: "row between" }, h("h2", null, "The agent buys the prize"), pill(p.status)),
     h(
       "ol",
       { class: "purchase-steps" },
@@ -173,7 +180,9 @@ function purchaseBlock(state, p) {
         let cls = "todo";
         if (p.status === "PURCHASED" || i < at) cls = "done";
         else if (i === at) cls = p.status === "FAILED" ? "failed" : p.status === "BUYING" ? "now" : "done";
-        return h("li", { class: cls }, h("span", { class: "dot" }), h("span", null, label), h("span", { class: "tiny muted" }, id === "gate" && gate.disposition ? gateWord : ""));
+        const arriving = cls === "done" && i > firstNew;
+        if (arriving) cls += " arrive";
+        return h("li", { class: cls, style: arriving ? { "--delay": `${(i - firstNew - 1) * 0.22}s` } : null }, h("span", { class: "dot" }), h("span", null, label), h("span", { class: "tiny muted" }, id === "gate" && gate.disposition ? gateWord : ""));
       }),
     ),
     h(
@@ -186,8 +195,9 @@ function purchaseBlock(state, p) {
       p.final_amount ? h("div", { class: "line" }, h("span", { class: "muted" }, "Charged"), h("b", { class: "num" }, money(p.final_amount, "USD"))) : null,
       h("div", { class: "line" }, h("span", { class: "muted" }, "Through"), h("span", { style: { textAlign: "right" } }, BACKEND_LABEL[p.backend] || p.backend || "-")),
     ),
+    h("div", { class: "block wheat", style: { padding: "18px" } }, authorityBar(state, p.quote_final_amount)),
     p.order_id
-      ? h("div", { class: "stack" }, h("div", { class: "eyebrow" }, "Order id"), h("div", { class: "order-id" }, p.order_id), p.checkout_id ? h("div", { class: "tiny muted mono" }, `Checkout ${p.checkout_id}`) : null)
+      ? h("div", { class: "order-block stack" }, h("div", { class: "label" }, "Reap order"), h("div", { class: "order-id" }, p.order_id), p.checkout_id ? h("div", { class: "tiny mono" }, `Checkout ${p.checkout_id}`) : null)
       : null,
     p.error ? h("p", { class: "banner error" }, p.error) : null,
     h("p", { class: "stand-in" }, p.stand_in || (state.pool && state.pool.stand_in) || ""),
@@ -213,6 +223,9 @@ function disputesBlock(ctx, ui, pending) {
             row.firstChild.prepend(h("span", { class: "small" }, `${names[e.participant_id] || "A player"}: `));
             const own = e.participant_id === ctx.meId;
             const disputable = e.state !== "DISPUTED" && (own ? e.state === "REJECTED" : e.state === "VERIFIED");
+            if (ctx.state.group.status === "DISPUTE_WINDOW" && e.state === "DISPUTED") {
+              row.append(reviewButtons(ui, e));
+            }
             if (pending && me && ctx.state.group.status === "DISPUTE_WINDOW" && disputable) {
               row.append(ui.editing === e.event_id ? disputeForm(ctx, ui, e) : h("div", { class: "why-line" }, h("button", { class: "btn ghost", type: "button", style: { minHeight: "40px", padding: "0 14px" }, onclick: () => ui.setEditing(e.event_id) }, "Dispute this score")));
             }
@@ -221,6 +234,19 @@ function disputesBlock(ctx, ui, pending) {
         )
       : h("p", { class: "muted" }, "No check-ins were made."),
   );
+}
+
+// The reviewer's verdict on a disputed check-in: tonight, whoever runs the room.
+function reviewButtons(ui, e) {
+  const keep = h("button", { class: "btn ghost", type: "button", style: { minHeight: "44px", padding: "0 16px" } }, "Reinstate the points");
+  const drop = h("button", { class: "btn danger", type: "button", style: { minHeight: "44px", padding: "0 16px" } }, "Reject the check-in");
+  const decide = async (button, reinstate) => {
+    const res = await act(button, ui.disputeErr, "Recording", () => api.reviewDispute(e.event_id, reinstate));
+    if (res) ui.reload();
+  };
+  keep.addEventListener("click", () => decide(keep, true));
+  drop.addEventListener("click", () => decide(drop, false));
+  return h("div", { class: "why-line row" }, h("span", { class: "small" }, "Reviewer:"), keep, drop);
 }
 
 function disputeForm(ctx, ui, e) {
