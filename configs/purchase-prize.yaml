@@ -27,7 +27,7 @@ purchase:
     city: Singapore
     postal_code: "000001"
     country: SG
-  return_url: "https://example.invalid/prize/return"
+  return_url: "https://github.com/BrianIsaac"   # reachable: Reap returns the browser here after its hosted page
   checkout:
     simulate_completed_when_allowed: true
     poll_every_s: 1
