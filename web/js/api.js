@@ -42,21 +42,35 @@ async function request(method, path, body) {
   return data;
 }
 
+// Which drop the room is looking at. Null means the older single-drop API at /api/state.
+let dropId = null;
+
+export function useDrop(id) {
+  dropId = id;
+}
+
+// Every drop-scoped path is built here, so the scheme changes in one place.
+function scoped(path) {
+  return dropId ? `/drops/${encodeURIComponent(dropId)}${path}` : path;
+}
+
 export const api = {
-  state: () => request("GET", "/state"),
-  join: (name) => request("POST", "/join", { name }),
-  intake: (playerId, message) => request("POST", "/intake", { player_id: playerId, message }),
-  editContract: (playerId, fields) => request("PUT", "/contract", { player_id: playerId, ...fields }),
-  lockContract: (playerId) => request("POST", "/contract/lock", { player_id: playerId }),
-  accept: (playerId) => request("POST", "/accept", { player_id: playerId }),
-  decline: (playerId) => request("POST", "/decline", { player_id: playerId }),
-  checkin: (form) => request("POST", "/checkin", form),
+  drops: () => request("GET", "/drops"),
+  state: () => request("GET", dropId ? scoped("") : "/state"),
+  join: (name) => request("POST", scoped("/join"), { name }),
+  intake: (playerId, message) => request("POST", scoped("/intake"), { player_id: playerId, message }),
+  editContract: (playerId, fields) => request("PUT", scoped("/contract"), { player_id: playerId, ...fields }),
+  lockContract: (playerId) => request("POST", scoped("/contract/lock"), { player_id: playerId }),
+  accept: (playerId) => request("POST", scoped("/accept"), { player_id: playerId }),
+  decline: (playerId) => request("POST", scoped("/decline"), { player_id: playerId }),
+  checkin: (form) => request("POST", scoped("/checkin"), form),
   dispute: (playerId, eventId, reason) =>
-    request("POST", "/dispute", { player_id: playerId, event_id: eventId, reason }),
-  reviewDispute: (eventId, reinstate) => request("POST", "/dispute/review", { event_id: eventId, reinstate }),
-  finalize: () => request("POST", "/finalize", {}),
-  reset: () => request("POST", "/reset", {}),
-  ledger: (afterSeq = 0) => request("GET", `/ledger?after_seq=${afterSeq}`),
-  events: (playerId) => request("GET", playerId ? `/events?player_id=${encodeURIComponent(playerId)}` : "/events"),
-  evidenceUrl: (evidenceId) => `${BASE}/evidence/${encodeURIComponent(evidenceId)}`,
+    request("POST", scoped("/dispute"), { player_id: playerId, event_id: eventId, reason }),
+  reviewDispute: (eventId, reinstate) => request("POST", scoped("/dispute/review"), { event_id: eventId, reinstate }),
+  finalize: () => request("POST", scoped("/finalize"), {}),
+  reset: () => request("POST", scoped("/reset"), {}),
+  ledger: (afterSeq = 0) => request("GET", scoped(`/ledger?after_seq=${afterSeq}`)),
+  events: (playerId) =>
+    request("GET", scoped(playerId ? `/events?player_id=${encodeURIComponent(playerId)}` : "/events")),
+  evidenceUrl: (evidenceId) => `${BASE}${scoped(`/evidence/${encodeURIComponent(evidenceId)}`)}`,
 };

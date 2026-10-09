@@ -30,6 +30,104 @@ from urllib.parse import parse_qs, urlparse
 WEB_ROOT = Path(__file__).resolve().parent.parent / "web"
 MILESTONE_POINTS = [15, 20, 25, 40]
 DURATION_DAYS = 28
+
+
+@dataclass(frozen=True)
+class DropSpec:
+    """What makes one drop different from another: its prize, its entry and its length."""
+
+    id: str
+    title: str
+    prize: str
+    merchant: str
+    list_price: float
+    items: float
+    shipping: float
+    entry: float
+    duration_days: int
+    starts_in_minutes: float
+
+    @property
+    def quote(self) -> float:
+        """The landed quote: the item and its shipping, tax nil.
+
+        Returns:
+            The quote.
+        """
+        return round(self.items + self.shipping, 2)
+
+    @property
+    def ceiling(self) -> float:
+        """The agent's spending ceiling when every seat is taken: the pool less 10 percent.
+
+        Returns:
+            The ceiling.
+        """
+        return round(self.entry * 3 * 0.9, 2)
+
+
+DROPS = [
+    DropSpec(
+        "drp_keychron",
+        "Earn your Keychron B40",
+        "Keychron B40 keyboard",
+        "Keychron",
+        49.99,
+        49.99,
+        21.21,
+        30.0,
+        28,
+        30,
+    ),
+    DropSpec(
+        "drp_ugreen",
+        "Earn your UGREEN mouse",
+        "UGREEN wireless mouse",
+        "UGREEN",
+        32.99,
+        24.10,
+        6.90,
+        15.0,
+        7,
+        15,
+    ),
+    DropSpec(
+        "drp_bottle",
+        "Earn your steel bottle",
+        "Insulated steel bottle",
+        "Hydro Peak",
+        29.00,
+        29.00,
+        8.50,
+        15.0,
+        14,
+        45,
+    ),
+    DropSpec(
+        "drp_band",
+        "Earn your fitness band",
+        "Fitness tracker band",
+        "Pulse",
+        59.00,
+        59.00,
+        9.00,
+        30.0,
+        28,
+        60,
+    ),
+    DropSpec(
+        "drp_rope",
+        "Earn your speed rope",
+        "Weighted speed rope",
+        "Loop",
+        19.90,
+        19.90,
+        6.00,
+        10.0,
+        14,
+        90,
+    ),
+]
 RUBRIC_VERSION = "rubric-v1"
 SEEDS = ("open", "intake", "agreement", "active", "dispute", "fulfilled", "cancelled")
 
@@ -125,6 +223,7 @@ class Room:
 
     seconds_per_day: float
     dispute_seconds: float
+    spec: DropSpec = DROPS[0]
     status: str = "OPEN_FOR_JOINING"
     players: list[Player] = field(default_factory=list[Player])
     ledger: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
@@ -137,6 +236,13 @@ class Room:
     rubric_locked_at: datetime | None = None
     result: dict[str, Any] | None = None
     enrolment_deadline: datetime = field(default_factory=lambda: utcnow() + timedelta(minutes=30))
+    scheduled_start: datetime = field(default_factory=lambda: utcnow() + timedelta(minutes=30))
+
+    def __post_init__(self) -> None:
+        """Places the enrolment deadline and the scheduled start from the spec."""
+        self.enrolment_deadline = utcnow() + timedelta(minutes=self.spec.starts_in_minutes)
+        self.scheduled_start = self.enrolment_deadline
+
     lock: threading.RLock = field(default_factory=threading.RLock)
 
     def append(self, kind: str, subject: str, summary: str) -> None:
@@ -247,9 +353,10 @@ class Room:
         """
         self.tick()
         now = utcnow()
-        entry = 30.0
+        spec = self.spec
+        entry = spec.entry
         gross = entry * len([p for p in self.players if p.entry == "RESERVED"])
-        quote = 71.20
+        quote = spec.quote
         board = self.leaderboard()
         ranks = {r["player_id"]: r for r in board}
         day = None
@@ -257,15 +364,21 @@ class Room:
             day = round((now - self.started_at).total_seconds() / self.seconds_per_day, 1)
         return {
             "group": {
-                "id": "grp_main",
-                "title": "Earn your Keychron B40",
+                "id": spec.id,
+                "title": spec.title,
                 "status": self.status,
                 "min_players": 3,
                 "max_players": 3,
-                "entry_amount": "30.00",
+                "entry_amount": f"{entry:.2f}",
                 "currency": "USD",
                 "enrolment_deadline": iso(self.enrolment_deadline),
-                "duration_days": DURATION_DAYS,
+                "duration_days": spec.duration_days,
+                "starts_at": iso(self.scheduled_start),
+                "scheduled_start": iso(self.scheduled_start),
+                "scheduled_end": iso(
+                    self.scheduled_start
+                    + timedelta(seconds=self.seconds_per_day * spec.duration_days)
+                ),
                 "started_at": iso(self.started_at),
                 "ends_at": iso(self.ends_at),
                 "dispute_window_ends_at": iso(self.dispute_ends_at),
@@ -281,14 +394,14 @@ class Room:
                 "day": day,
             },
             "prize": {
-                "name": "Keychron B40 keyboard",
-                "merchant": "Keychron",
-                "list_price": "49.99",
+                "name": spec.prize,
+                "merchant": spec.merchant,
+                "list_price": f"{spec.list_price:.2f}",
                 "image_url": None,
                 "quote": {
                     "final_amount": f"{quote:.2f}",
-                    "items": "49.99",
-                    "shipping": "21.21",
+                    "items": f"{spec.items:.2f}",
+                    "shipping": f"{spec.shipping:.2f}",
                     "tax": "0.00",
                     "quoted_at": iso(now),
                     "source": "mock",
@@ -298,12 +411,14 @@ class Room:
                 "entries": len([p for p in self.players if p.entry == "RESERVED"]),
                 "gross": f"{gross:.2f}",
                 "prize_quote": f"{quote:.2f}",
-                "buffer": "9.00",
-                "ceiling": "81.00",
+                "buffer": f"{entry * 3 * 0.1:.2f}",
+                "ceiling": f"{spec.ceiling:.2f}",
+                "at_capacity": {"gross": f"{entry * 3:.2f}", "ceiling": f"{spec.ceiling:.2f}"},
                 "surplus": f"{max(0.0, gross - quote):.2f}",
                 "stand_in": "The pool is test USDC in the Kwal vault on Ink Sepolia, a labelled "
                 "stand-in for the card the agent charges. No cash value.",
-                "disclosure": "Entry 30.00 test USDC. Pool = 3 x 30.00. The agent may spend up to "
+                "disclosure": f"Entry {entry:.2f} test USDC. Pool = 3 x {entry:.2f}. The agent may "
+                "spend up to "
                 "the pool less a 10% buffer on the prize, its shipping and tax. Refunded in full "
                 "if the group does not start. Surplus is refunded pro rata.",
             },
@@ -348,6 +463,49 @@ class Room:
             "result": self.result,
             "ledger_tail": self.ledger[-8:],
             "ledger_intact": True,
+            "drop": self.summary(),
+        }
+
+    def summary(self) -> dict[str, Any]:
+        """Builds the contract's drop summary.
+
+        Returns:
+            The summary.
+        """
+        spec = self.spec
+        end = self.ends_at or self.scheduled_start + timedelta(
+            seconds=self.seconds_per_day * spec.duration_days
+        )
+        return {
+            "drop_id": spec.id,
+            "title": spec.title,
+            "featured": spec.id == DROPS[0].id,
+            "prize": {
+                "name": spec.prize,
+                "merchant": spec.merchant,
+                "list_price": f"{spec.list_price:.2f}",
+                "currency": "USD",
+                "image_url": None,
+                "quote": {"final_amount": f"{spec.quote:.2f}"},
+                "live_purchase": spec.id == DROPS[0].id,
+            },
+            "entry_amount": f"{spec.entry:.2f}",
+            "currency": "USD",
+            "seats": {"taken": len(self.players), "max": 3},
+            "status": self.status,
+            "starts_at": iso(self.started_at or self.scheduled_start),
+            "ends_at": iso(end),
+            "duration_days": spec.duration_days,
+            "pool_at_capacity": {
+                "entries": 3,
+                "gross": f"{spec.entry * 3:.2f}",
+                "buffer": f"{spec.entry * 0.3:.2f}",
+                "ceiling": f"{spec.ceiling:.2f}",
+                "surplus": f"{spec.ceiling - spec.quote:.2f}",
+            },
+            "note": None
+            if spec.id == DROPS[0].id
+            else "Fixture drop: its purchase runs on the mock.",
         }
 
     def join(self, name: str) -> Player:
@@ -391,11 +549,11 @@ class Room:
             "goal_statement": g["goal_statement"],
             "baseline": {"value": g["baseline"], "unit": g["unit"], "verified": False},
             "target": {"value": g["target"], "unit": g["unit"]},
-            "duration_days": DURATION_DAYS,
+            "duration_days": self.spec.duration_days,
             "milestones": [
                 {
                     "index": i,
-                    "day": 7 * (i + 1),
+                    "day": round(self.spec.duration_days * (i + 1) / 4),
                     "target": t,
                     "max_points": MILESTONE_POINTS[i],
                     "opens_at": None,
@@ -538,11 +696,12 @@ class Room:
         now = utcnow()
         self.status = "ACTIVE"
         self.started_at = now
-        self.ends_at = now + timedelta(seconds=self.seconds_per_day * DURATION_DAYS)
+        self.ends_at = now + timedelta(seconds=self.seconds_per_day * self.spec.duration_days)
         for p in self.players:
             assert p.contract is not None
             for m in p.contract["milestones"]:
-                m["opens_at"] = iso(now + timedelta(seconds=self.seconds_per_day * (m["day"] - 7)))
+                opens = 0 if m["index"] == 0 else p.contract["milestones"][m["index"] - 1]["day"]
+                m["opens_at"] = iso(now + timedelta(seconds=self.seconds_per_day * opens))
                 m["due_at"] = iso(now + timedelta(seconds=self.seconds_per_day * m["day"]))
         self.append("group.started", "grp_main", "The challenge started: every seat accepted.")
 
@@ -792,10 +951,16 @@ def seed(room: Room, stage: str) -> None:
         assert p.contract is not None
         for m in p.contract["milestones"]:
             m["opens_at"] = iso(
-                room.started_at + timedelta(seconds=room.seconds_per_day * (m["day"] - 7))
+                room.started_at
+                + timedelta(
+                    seconds=room.seconds_per_day
+                    * (0 if m["index"] == 0 else p.contract["milestones"][m["index"] - 1]["day"])
+                )
             )
             m["due_at"] = iso(room.started_at + timedelta(seconds=room.seconds_per_day * m["day"]))
-    room.ends_at = room.started_at + timedelta(seconds=room.seconds_per_day * DURATION_DAYS)
+    room.ends_at = room.started_at + timedelta(
+        seconds=room.seconds_per_day * room.spec.duration_days
+    )
     room.checkin(
         {"player_id": players[0].player_id, "milestone": "0", "value": "9"}, ("image/jpeg", b"a")
     )
@@ -818,8 +983,7 @@ def seed(room: Room, stage: str) -> None:
 class Handler(BaseHTTPRequestHandler):
     """Serves the static client and the API from one shared room."""
 
-    room: Room
-    seed_stage: str | None = None
+    rooms: dict[str, Room]
 
     def log_message(self, format: str, *args: object) -> None:  # noqa: A002
         """Keeps the console quiet.
@@ -893,8 +1057,22 @@ class Handler(BaseHTTPRequestHandler):
             path: The path.
             query: The query string.
         """
-        room = self.room
         try:
+            if path == "/api/drops":
+                for r in self.rooms.values():
+                    r.tick()
+                self.send_json(200, {"drops": [r.summary() for r in self.rooms.values()]})
+                return
+            parts = path.split("/")
+            if path.startswith("/api/drops/") and len(parts) >= 4:
+                drop_id = parts[3]
+                if drop_id not in self.rooms:
+                    raise Refusal("UNKNOWN_DROP", "No drop with that id.", 404)
+                rest = "/".join(parts[4:])
+                path = "/api/" + (rest or "state")
+            else:
+                drop_id = next(iter(self.rooms))
+            room = self.rooms[drop_id]
             with room.lock:
                 self.route(room, method, path, query)
         except Refusal as r:
@@ -983,8 +1161,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, {"result": result, "state": room.state()})
         elif path == "/api/reset":
             self.read_json()
-            fresh = Room(room.seconds_per_day, room.dispute_seconds)
-            Handler.room = fresh
+            fresh = Room(room.seconds_per_day, room.dispute_seconds, room.spec)
+            self.rooms[room.spec.id] = fresh
             self.send_json(200, {"state": fresh.state()})
         else:
             raise Refusal("NOT_FOUND", f"No route {method} {path}.", HTTPStatus.NOT_FOUND)
@@ -1021,10 +1199,14 @@ def main() -> None:
     parser.add_argument("--seconds-per-day", type=float, default=8.571)
     parser.add_argument("--dispute-seconds", type=float, default=20.0)
     args = parser.parse_args()
-    room = Room(args.seconds_per_day, args.dispute_seconds)
+    rooms = {spec.id: Room(args.seconds_per_day, args.dispute_seconds, spec) for spec in DROPS}
+    first, second, _, fourth, *_ = rooms.values()
     if args.seed:
-        seed(room, args.seed)
-    Handler.room = room
+        seed(first, args.seed)
+    second.join("Dana")
+    second.join("Eli")
+    seed(fourth, "active")
+    Handler.rooms = rooms
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     print(f"fixture server on http://127.0.0.1:{args.port} ({args.seed or 'fresh'})", flush=True)
     server.serve_forever()

@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 
 from playwright.sync_api import Browser, ConsoleMessage, Page, expect, sync_playwright
+from probe import probe_404
 
 PLAYERS = [
     ("Alice", "I want to do more push-ups: 5 strict today, 20 by the end. I can film it."),
@@ -72,7 +73,7 @@ class Room:
             who: The player whose page logged it.
             msg: The console message.
         """
-        if msg.type == "error":
+        if msg.type == "error" and not probe_404(msg):
             self.errors.append(f"{who}: {msg.text}")
 
     def shot(self, page: Page, name: str) -> None:
@@ -106,13 +107,14 @@ def talk_to_coach(page: Page, first: str) -> None:
     raise AssertionError("the coach did not propose a contract")
 
 
-def run(base: str, out: Path, stop_after: str) -> list[str]:  # noqa: PLR0912, PLR0915 - one linear script
+def run(base: str, out: Path, stop_after: str, drop: str) -> list[str]:  # noqa: PLR0912, PLR0915 - one linear script
     """Plays the journey up to and including a stage.
 
     Args:
         base: The server's base URL.
         out: The screenshot directory.
         stop_after: The last stage to play.
+        drop: The drop to play (``main`` for a server with a single drop).
 
     Returns:
         Every console and page error seen.
@@ -126,15 +128,18 @@ def run(base: str, out: Path, stop_after: str) -> list[str]:  # noqa: PLR0912, P
         room = Room(browser, base, out)
         alice, ben, chloe = room.pages
 
-        alice.goto(f"{base}/#/drop")
-        alice.get_by_role("button", name="Reset the demo group").wait_for()
+        alice.goto(f"{base}/#/drops")
+        alice.wait_for_selector("main .stack, main .stack-lg", timeout=8000)
+        room.shot(alice, "00-drops-laptop")
+        alice.goto(f"{base}/#/d/{drop}/drop")
+        alice.get_by_role("button", name="Reset this drop").wait_for()
         alice.once("dialog", lambda d: d.accept())
-        alice.get_by_role("button", name="Reset the demo group").click()
+        alice.get_by_role("button", name="Reset this drop").click()
         expect(alice.get_by_text("Open for joining").first).to_be_visible()
         room.shot(alice, "01-drop-laptop")
 
         for page, (name, _) in zip(room.pages, PLAYERS, strict=True):
-            page.goto(f"{base}/#/join")
+            page.goto(f"{base}/#/d/{drop}/join")
             page.get_by_label("Your name, as the room will see it").fill(name)
             page.get_by_role("checkbox").check()
             page.get_by_role("button", name="Join for").click()
@@ -239,8 +244,9 @@ def main() -> None:
     parser.add_argument("base")
     parser.add_argument("out", type=Path)
     parser.add_argument("--stop-after", choices=STAGES, default="result")
+    parser.add_argument("--drop", default="main")
     args = parser.parse_args()
-    errors = run(args.base.rstrip("/"), args.out, args.stop_after)
+    errors = run(args.base.rstrip("/"), args.out, args.stop_after, args.drop)
     for line in errors:
         print(line)
     print("room flow: " + ("errors" if errors else "clean"))

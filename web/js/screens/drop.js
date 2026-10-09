@@ -1,7 +1,7 @@
 // Home: the drop, composed as a poster. The title and the countdown, then the prize, the pool
 // and the seats as blocks, then the one thing to do.
 
-import { h, fill, stateStrip, countdown, money } from "../dom.js";
+import { h, fill, stateStrip, countdown, money, timeOfDay } from "../dom.js";
 import { prizeBlock, disclosure, ledgerTail, seatRings, authorityBar } from "../components.js";
 
 export function mount(ctx) {
@@ -18,7 +18,9 @@ function build(ctx) {
   const players = state.players || [];
   const cancelled = g.status === "CANCELLED" || g.status === "REFUNDING";
   const full = players.length >= g.max_players;
-  const potential = Number(g.entry_amount) * g.max_players;
+  const atCapacity = pool.at_capacity || (state.drop && state.drop.pool_at_capacity) || {};
+  const potential = Number(atCapacity.gross) || Number(g.entry_amount) * g.max_players;
+  const note = state.drop && state.drop.note;
 
   return [
     h(
@@ -35,7 +37,7 @@ function build(ctx) {
         ),
       ),
       clockBlock(state, cancelled),
-      h("div", { class: "block paper p-prize" }, prizeBlock(state)),
+      h("div", { class: "block paper p-prize" }, prizeBlock(state), note ? h("p", { class: "tiny muted", style: { marginTop: "10px" } }, note) : null),
       h(
         "div",
         { class: "block wheat p-pool" },
@@ -49,7 +51,7 @@ function build(ctx) {
         { class: "block night p-seats stack" },
         h("div", { class: "label" }, `${players.length} of ${g.max_players} seats taken`),
         seatRings(state, ctx.meId),
-        me ? h("p", { class: "small muted" }, `You hold seat ${me.seat}.`) : h("p", { class: "small muted" }, `It starts when all ${g.min_players} seats are taken and everyone accepts.`),
+        me ? h("p", { class: "small muted" }, `You hold seat ${me.seat}.`) : h("p", { class: "small muted" }, g.starts_at ? `It starts at ${timeOfDay(g.starts_at)} if all ${g.max_players} seats are taken and everyone has accepted; otherwise every entry is refunded.` : `It starts when all ${g.max_players} seats are taken and everyone accepts.`),
       ),
       h("div", { class: "p-cta" }, callToAction(ctx, full, cancelled)),
     ),
@@ -68,12 +70,16 @@ function clockBlock(state, cancelled) {
   }
   const open = g.status === "OPEN_FOR_JOINING";
   const live = g.status === "ACTIVE";
-  const label = open ? "Enrolment closes in" : live ? "Submissions close in" : "The challenge";
+  const before = ["OPEN_FOR_JOINING", "INTAKE", "READY_FOR_ACCEPTANCE"].includes(g.status);
+  const startAt = g.starts_at || g.enrolment_deadline;
+  const label = before && g.starts_at ? "Starts in" : open ? "Enrolment closes in" : live ? "Submissions close in" : "The challenge";
   return h(
     "div",
     { class: "block field p-clock" },
     h("div", { class: "label" }, label),
-    open || live ? countdown(open ? g.enrolment_deadline : g.ends_at, { done: "Closed" }) : h("div", { class: "countdown" }, `${g.duration_days} days`),
+    (before && g.starts_at) || open || live
+      ? countdown(live ? g.ends_at : startAt, { done: live ? "Closed" : "Starting" })
+      : h("div", { class: "countdown" }, `${g.duration_days} days`),
     state.clock ? h("span", { class: "pill accent" }, state.clock.label) : null,
   );
 }

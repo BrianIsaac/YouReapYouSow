@@ -11,12 +11,15 @@ import sys
 from pathlib import Path
 
 from playwright.sync_api import ConsoleMessage, sync_playwright
+from probe import probe_404
 
 WIDTHS = {"laptop": (1440, 900), "phone": (390, 844)}
-ROUTES = ("drop", "join", "coach", "agreement", "challenge", "result")
+ROUTES = ("drops", "drop", "join", "coach", "agreement", "challenge", "result")
 
 
-def shoot(base: str, out: Path, player: str | None, routes: list[str], tag: str) -> list[str]:
+def shoot(  # noqa: PLR0917 - each argument is one plain option
+    base: str, out: Path, player: str | None, routes: list[str], tag: str, drop: str
+) -> list[str]:
     """Opens each route at each width, saves a full-page screenshot and collects errors.
 
     Args:
@@ -25,6 +28,7 @@ def shoot(base: str, out: Path, player: str | None, routes: list[str], tag: str)
         player: A player id to view as, or None for a viewer without a seat.
         routes: The routes to open.
         tag: A prefix for the file names.
+        drop: The drop to open (``main`` for a server with a single drop).
 
     Returns:
         Every console error and page error seen, one line each.
@@ -41,14 +45,15 @@ def shoot(base: str, out: Path, player: str | None, routes: list[str], tag: str)
             page = context.new_page()
 
             def on_console(msg: ConsoleMessage, where: str = label) -> None:
-                if msg.type == "error":
+                if msg.type == "error" and not probe_404(msg):
                     errors.append(f"{where}: {msg.text}")
 
             page.on("console", on_console)
             page.on("pageerror", lambda exc, where=label: errors.append(f"{where}: {exc}"))
             query = f"?player={player}" if player else ""
             for route in routes:
-                page.goto(f"{base}/{query}#/{route}")
+                where = "#/drops" if route == "drops" else f"#/d/{drop}/{route}"
+                page.goto(f"{base}/{query}{where}")
                 page.wait_for_selector("main .stack, main .card, main .stack-lg", timeout=8000)
                 page.wait_for_timeout(900)
                 overflow = page.evaluate(
@@ -70,8 +75,11 @@ def main() -> None:
     parser.add_argument("--player", default=None)
     parser.add_argument("--routes", default=",".join(ROUTES))
     parser.add_argument("--tag", default="screen")
+    parser.add_argument("--drop", default="main")
     args = parser.parse_args()
-    errors = shoot(args.base.rstrip("/"), args.out, args.player, args.routes.split(","), args.tag)
+    errors = shoot(
+        args.base.rstrip("/"), args.out, args.player, args.routes.split(","), args.tag, args.drop
+    )
     for line in errors:
         print(line)
     sys.exit(1 if errors else 0)

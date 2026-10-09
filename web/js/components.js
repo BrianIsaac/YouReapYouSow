@@ -397,7 +397,9 @@ export function authorityBar(state, quoteAmount) {
   const full = Number(state.group.entry_amount) * state.group.max_players;
   const gross = Number(pool.gross) || 0;
   const scale = Math.max(full, gross, Number(quoteAmount) || 0, 1);
-  const ceiling = Number(pool.ceiling) || 0;
+  const atCapacity = pool.at_capacity || (state.drop && state.drop.pool_at_capacity) || null;
+  const filling = (state.players || []).length < state.group.max_players && atCapacity && atCapacity.ceiling;
+  const ceiling = Number(filling ? atCapacity.ceiling : pool.ceiling) || 0;
   const quote = Number(quoteAmount ?? pool.prize_quote ?? (state.prize && state.prize.quote && state.prize.quote.final_amount));
   const pct = (v) => `${Math.max(0, Math.min(100, (100 * v) / scale))}%`;
   const inside = Number.isFinite(quote) && quote <= ceiling;
@@ -415,7 +417,7 @@ export function authorityBar(state, quoteAmount) {
       "div",
       { class: "legend" },
       Number.isFinite(quote) ? h("span", null, `Quote ${money(quote, "")}`) : h("span", null, "No quote yet"),
-      h("span", null, `Agent may spend up to ${money(ceiling, "")}`),
+      h("span", null, `Agent may spend up to ${money(ceiling, "")}${filling ? " when full" : ""}`),
       Number.isFinite(quote) ? h("span", null, inside ? "Inside the limit" : "Over the limit") : null,
     ),
   );
