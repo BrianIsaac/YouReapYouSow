@@ -36,6 +36,33 @@ minute stand for a week, and the screen says so.
 **The money, labelled**: the pool is test USDC in the Kwal vault on Ink Sepolia, a
 labelled stand-in for the card the agent charges. No cash value.
 
+## The drops
+
+`configs/drops.yaml` lists five drops, each with its own prize, entry, three seats and a
+date range fixed when it is published (7, 14 or 28 challenge days): the Keychron B40
+(featured, USD, bought live on Reap's sandbox), the UGREEN mouse, the Anker Nano hub, the
+PRISM+ W290U and a Boxgreen snack bag. Reap's sandbox prices the four Singapore merchants
+in SGD; the gate buys only in the pool's currency, USD, so those four are bought on the
+local mock of Reap, and each says so. Entries are sized so three clear the landed quote
+after a 10% buffer.
+
+Joining, the coach and acceptance happen before a drop's fixed start; at the start the
+challenge begins if every seat is taken, every contract locked and everyone has accepted,
+otherwise every entry is refunded.
+
+## Running the demo
+
+```bash
+uv run uvicorn youreapyousow.api.app:serve --factory --port 8000
+# republish the featured drop to start five minutes from now
+curl -s -X POST localhost:8000/api/drops/keychron-b40/reset -H 'content-type: application/json' -d '{"lead_s": 300}'
+```
+
+Open `http://localhost:8000/`. With `REAP_BACKEND=sandbox` and an ACTIVE
+`REAP_ENROLLMENT_ID`, the featured prize is charged on the sandbox; while the enrolment is
+not ACTIVE (the sandbox refuses any checkout without one), the agent buys on the local mock
+through the same gate and says so on the result.
+
 ## The API
 
 `GET /api/state` is what the room screen polls; the routes under `/api` join, talk to the
