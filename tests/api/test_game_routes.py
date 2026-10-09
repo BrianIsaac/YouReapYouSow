@@ -1,10 +1,12 @@
 """The challenge's routes through the real app on the mock: join to a running challenge."""
 
 import asyncio
+import dataclasses
 import json
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
@@ -21,6 +23,7 @@ from youreapyousow.game.llm import Link
 from youreapyousow.game.models import ChatTurn
 from youreapyousow.game.verifier import Verifier
 from youreapyousow.market.service import MarketMode
+from youreapyousow.reap.client import ReapMock
 
 pytestmark = pytest.mark.anyio
 
@@ -338,3 +341,57 @@ async def test_a_disputed_check_in_reads_as_one_line_and_is_reviewed_by_either_i
     assert reviewed.status_code == 200
     again = (await http.get("/api/events")).json()["events"][0]
     assert (again["state"], again["delta"]) == ("VERIFIED", 15)
+
+
+async def _finalised_awaiting(running: Running) -> dict[str, Any]:
+    """Play to the finish with the featured drop's checkout waiting on its approval page.
+
+    Args:
+        running: The running app.
+
+    Returns:
+        The purchase as ``/api/finalize`` answers it.
+    """
+    http = running.http
+    drop = running.runtime.featured
+    drop.follow_every_s = 0.0
+    control = drop.buyer.control
+    control.settings = dataclasses.replace(control.settings, simulate_completed_when_allowed=False)
+    alice, *_ = await _active(http, running.clock)
+    await http.post(
+        "/api/checkin",
+        data={"player_id": alice, "milestone": "0", "value": "9"},
+        files={"file": ("p.jpg", b"\xff\xd8 x", "image/jpeg")},
+    )
+    running.clock.advance(seconds=4 * 60 + 1)
+    await http.get("/api/state")
+    running.clock.advance(seconds=21)
+    answer = (await http.post("/api/finalize", json={})).json()
+    purchase: dict[str, Any] = answer["result"]["purchase"]
+    return purchase
+
+
+async def test_finalize_waits_on_approval_and_a_poll_records_the_order(running: Running) -> None:
+    """REQUIRES_ACTION then COMPLETED through the routes: waiting, then FULFILLED on a poll."""
+    http = running.http
+    purchase = await _finalised_awaiting(running)
+    assert purchase["status"] == "AWAITING_APPROVAL", purchase["error"]
+    assert purchase["approval_url"].endswith(purchase["checkout_id"])
+    assert purchase["approval_expires_at"]
+    again = await http.post("/api/finalize", json={})
+    assert again.json()["error"]["code"] == "PURCHASE_IN_PROGRESS"
+    state = (await http.get("/api/state")).json()
+    assert state["group"]["status"] == "FINALIZED"
+    assert state["result"]["purchase"]["status"] == "AWAITING_APPROVAL"
+    reap = running.runtime.featured.buyer.control.reap
+    assert isinstance(reap, ReapMock)
+    reap.agentic.approve_checkout(purchase["checkout_id"])
+    running.clock.advance(seconds=1)
+    state = (await http.get("/api/drops/keychron-b40")).json()
+    bought = state["result"]["purchase"]
+    assert bought["status"] == "PURCHASED"
+    assert bought["order_id"]
+    assert bought["approved_at"]
+    assert state["group"]["status"] == "FULFILLED"
+    summaries = [e["summary"] for e in state["ledger_tail"]]
+    assert any(s.startswith("Bought for Alice: order ") for s in summaries)

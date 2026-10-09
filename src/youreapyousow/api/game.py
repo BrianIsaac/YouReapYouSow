@@ -2,9 +2,13 @@
 
 Every route moves the group's clock first (``tick``). A refusal is a 4xx with
 ``{"error": {"code", "message"}}``. Mutations are serialised by one lock; the model calls
-(the coach, the photo reader) happen outside it, so a slow model never blocks the room.
+(the coach, the photo reader) and Reap's reads happen outside it, so a slow model or a
+slow sandbox never blocks the room. While the prize purchase waits on the card holder's
+approval, every poll of the state re-reads its checkout, at most once per
+``Drop.follow_every_s``.
 """
 
+import time
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Annotated, Any
 
@@ -99,6 +103,32 @@ def state_of(drop: Drop) -> dict[str, JsonValue]:
     return state
 
 
+async def follow_purchase(runtime: "Runtime", drop: Drop) -> None:
+    """Re-read the drop's checkout while it awaits approval, and record what changed.
+
+    The read happens outside the room's lock; the outcome is recorded under it, only if
+    the purchase is still the one that was read.
+
+    Args:
+        runtime: The runtime.
+        drop: The drop.
+    """
+    async with runtime.game_lock:
+        waiting = drop.service.awaiting_purchase()
+    if waiting is None or drop.following.locked():
+        return
+    async with drop.following:
+        if time.monotonic() - drop.followed_at < drop.follow_every_s:
+            return
+        drop.followed_at = time.monotonic()
+        followed = await drop.buyer.follow(waiting, now=drop.service.clock())
+    if followed == waiting:
+        return
+    async with runtime.game_lock:
+        if drop.service.awaiting_purchase() == waiting:
+            drop.service.record_purchase(followed)
+
+
 def _all_groups(service: GameService) -> set[str]:
     rows = service.db.read("SELECT id FROM records WHERE kind = 'game_group'")
     return {str(r["id"]) for r in rows}
@@ -169,6 +199,8 @@ async def list_drops(request: Request) -> JSONResponse:
         Each drop's summary, the featured one first.
     """
     runtime = runtime_of(request)
+    for drop in runtime.drops.values():
+        await follow_purchase(runtime, drop)
     async with runtime.game_lock:
         summaries: list[JsonValue] = []
         for index, drop in enumerate(runtime.drops.values()):
@@ -193,6 +225,7 @@ async def get_state(request: Request, drop_id: str | None = None) -> JSONRespons
     """
     runtime = runtime_of(request)
     drop = drop_of(runtime, drop_id)
+    await follow_purchase(runtime, drop)
     async with runtime.game_lock:
         return JSONResponse(state_of(drop))
 

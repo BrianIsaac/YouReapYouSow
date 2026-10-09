@@ -77,6 +77,9 @@ class Drop:
         backend: That backend's name.
         buyer: Buys its prize behind the gate.
         prize: The prize block of its state.
+        follow_every_s: The least time between two reads of a checkout awaiting approval.
+        followed_at: When it was last read, on the monotonic clock.
+        following: Held while it is read, so concurrent polls read it once.
     """
 
     config: DropConfig
@@ -86,6 +89,9 @@ class Drop:
     backend: str
     buyer: PrizeBuyer
     prize: dict[str, JsonValue] = field(default_factory=dict[str, JsonValue])
+    follow_every_s: float = 2.0
+    followed_at: float = float("-inf")
+    following: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     def __post_init__(self) -> None:
         """Start the prize block from the configuration, before any quote lands."""
