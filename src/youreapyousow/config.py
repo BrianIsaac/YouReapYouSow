@@ -138,7 +138,7 @@ class Settings(BaseSettings):
     openai_timeout_s: float = 25.0
     demo_clock: float = Field(default=60 / 7, gt=0)
     entry_amount: Decimal = Field(default=Decimal("25.00"), gt=0)
-    vault_balance_usdc: Decimal = Field(default=Decimal("100.00"), ge=0)
+    vault_balance_usdc: Decimal = Field(default=Decimal("500.00"), ge=0)
     enrolment_window_s: float = Field(default=3600.0, gt=0)
     dispute_window_s: float = Field(default=20.0, ge=0)
     duration_days: int = Field(default=28, ge=4)

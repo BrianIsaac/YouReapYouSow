@@ -295,3 +295,15 @@ async def test_a_republished_drop_starts_after_the_lead_given(running: Running) 
     assert group["status"] == "OPEN_FOR_JOINING"
     assert group["starts_at"] is not None
     assert state["drop"]["duration_days"] == 14
+
+
+async def test_the_stand_in_vault_holds_every_drop_at_capacity(running: Running) -> None:
+    """Five drops full at once reserve 432.00; the 500.00 stand-in covers them."""
+    http = running.http
+    drops = (await http.get("/api/drops")).json()["drops"]
+    total = sum(float(d["pool_at_capacity"]["gross"]) for d in drops)
+    assert total == 432.0
+    for d in drops:
+        for name in ("A", "B", "C"):
+            answer = await http.post(f"/api/drops/{d['drop_id']}/join", json={"name": name})
+            assert answer.status_code == 200, answer.json()
