@@ -1,8 +1,9 @@
-// The room screen: polls the group's state, keeps this browser's seat, and shows the screen
-// for where the group is (or the one the viewer picked from the journey bar).
+// The room screen: the drops on offer, and inside one drop the screen for where its group is
+// (or the one the viewer picked from the journey bar). Each drop keeps its own seat.
 
-import { api } from "./api.js";
+import { api, useDrop } from "./api.js";
 import { h, fill, groupPill, prefs, setServerNow } from "./dom.js";
+import * as drops from "./screens/drops.js";
 import * as drop from "./screens/drop.js";
 import * as join from "./screens/join.js";
 import * as coach from "./screens/coach.js";
@@ -11,7 +12,8 @@ import * as challenge from "./screens/challenge.js";
 import * as result from "./screens/result.js";
 
 const POLL_MS = 1500;
-const PLAYER_KEY = "yrys.player";
+const DROPS_POLL_MS = 3000;
+const LEGACY = "main";
 
 const ROUTES = [
   { id: "drop", label: "The drop", screen: drop },
@@ -40,10 +42,15 @@ const els = {
   steps: document.getElementById("steps"),
   status: document.getElementById("group-status"),
   select: document.getElementById("player-select"),
+  whoami: document.querySelector(".whoami"),
   reset: document.getElementById("reset-btn"),
 };
 
 const app = {
+  legacy: false,
+  drops: null,
+  dropsText: "",
+  dropId: null,
   state: null,
   stateText: "",
   meId: null,
@@ -53,11 +60,18 @@ const app = {
   offline: false,
 };
 
-function readPlayerFromUrl() {
-  const params = new URLSearchParams(location.search);
-  const fromUrl = params.get("player");
-  if (fromUrl) prefs.set(PLAYER_KEY, fromUrl);
-  app.meId = prefs.get(PLAYER_KEY);
+function playerKey(id) {
+  return `yrys.player.${id}`;
+}
+
+function parseHash() {
+  const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  if (parts[0] === "d" && parts[1]) {
+    const screen = ROUTES.some((r) => r.id === parts[2]) ? parts[2] : null;
+    return { dropId: decodeURIComponent(parts[1]), screen };
+  }
+  if (ROUTES.some((r) => r.id === parts[0])) return { dropId: app.legacy ? LEGACY : null, screen: parts[0] };
+  return { dropId: null, screen: null };
 }
 
 function me() {
@@ -65,7 +79,7 @@ function me() {
   return players.find((p) => p.player_id === app.meId) || null;
 }
 
-function defaultRoute() {
+function defaultScreen() {
   const status = app.state && app.state.group && app.state.group.status;
   const stage = STAGE_OF_STATUS[status] || "drop";
   if (stage === "join" && !me()) return "drop";
@@ -73,85 +87,132 @@ function defaultRoute() {
   return stage;
 }
 
-function routeFromHash() {
-  const id = location.hash.replace(/^#\/?/, "");
-  return ROUTES.some((r) => r.id === id) ? id : null;
+function dropHref(id, screen) {
+  return `#/d/${encodeURIComponent(id)}${screen ? `/${screen}` : ""}`;
 }
 
 function context() {
   return {
     state: app.state,
+    drops: app.drops,
     me: me(),
     meId: app.meId,
+    dropId: app.dropId,
     go,
+    openDrop: (id) => (location.hash = dropHref(id)),
     refresh: poll,
     setState,
     setMe,
   };
 }
 
-function go(id) {
-  if (location.hash !== `#/${id}`) location.hash = `#/${id}`;
+function go(screen) {
+  const target = dropHref(app.dropId, screen);
+  if (location.hash !== target) location.hash = target;
   else render(true);
 }
 
 function setMe(id) {
   app.meId = id;
-  prefs.set(PLAYER_KEY, id);
+  if (app.dropId) prefs.set(playerKey(app.dropId), id);
   render(true);
+}
+
+function enterDrop(id) {
+  if (app.dropId === id) return;
+  app.dropId = id;
+  useDrop(id === LEGACY ? null : id);
+  app.state = null;
+  app.stateText = "";
+  app.lastStatus = null;
+  app.meId = prefs.get(playerKey(id));
+  app.mounted = null;
+  const fromUrl = new URLSearchParams(location.search).get("player");
+  if (fromUrl) {
+    app.meId = fromUrl;
+    prefs.set(playerKey(id), fromUrl);
+  }
+}
+
+function leaveDrop() {
+  app.dropId = null;
+  app.state = null;
+  app.stateText = "";
+  app.mounted = null;
 }
 
 function setState(state) {
   if (!state || !state.group) return;
-  const text = JSON.stringify(state);
   const statusChanged = app.lastStatus !== null && state.group.status !== app.lastStatus;
   app.state = state;
-  app.stateText = text;
+  app.stateText = JSON.stringify(state);
   setServerNow(state.clock && state.clock.now);
   app.lastStatus = state.group.status;
   if (statusChanged) {
-    go(defaultRoute());
+    go(defaultScreen());
     return;
   }
   render(false);
 }
 
 function renderChrome() {
-  const status = app.state && app.state.group ? app.state.group.status : null;
+  const inDrop = Boolean(app.dropId && app.state);
+  const status = inDrop ? app.state.group.status : null;
   fill(els.status, status ? groupPill(status) : null);
+  els.whoami.classList.toggle("hidden", !inDrop);
+  els.reset.classList.toggle("hidden", !inDrop);
 
-  const players = (app.state && app.state.players) || [];
-  const options = [h("option", { value: "" }, "Watching, no seat")];
-  for (const p of players) options.push(h("option", { value: p.player_id }, `${p.name} (seat ${p.seat})`));
-  fill(els.select, options);
-  els.select.value = me() ? app.meId : "";
+  if (inDrop) {
+    const players = app.state.players || [];
+    const options = [h("option", { value: "" }, "Watching, no seat")];
+    for (const p of players) options.push(h("option", { value: p.player_id }, `${p.name} (seat ${p.seat})`));
+    fill(els.select, options);
+    els.select.value = me() ? app.meId : "";
+  }
 
-  const live = defaultRoute();
+  const live = inDrop ? defaultScreen() : null;
   const liveIndex = ROUTES.findIndex((r) => r.id === live);
-  fill(
-    els.steps,
-    ROUTES.map((r, i) => {
+  const items = [
+    app.legacy
+      ? null
+      : h("li", null, h("a", { href: "#/drops", class: app.route === "drops" ? "here" : "", "aria-current": app.route === "drops" ? "page" : null }, "All drops")),
+  ];
+  if (inDrop) {
+    ROUTES.forEach((r, i) => {
       const cls = [r.id === app.route ? "here" : "", r.id === live ? "live" : "", i < liveIndex ? "done" : ""];
-      return h(
-        "li",
-        null,
-        h("a", { href: `#/${r.id}`, class: cls.join(" ").trim(), "aria-current": r.id === app.route ? "page" : null }, r.label),
+      items.push(
+        h("li", null, h("a", { href: dropHref(app.dropId, r.id), class: cls.join(" ").trim(), "aria-current": r.id === app.route ? "page" : null }, r.label)),
       );
-    }),
-  );
+    });
+  }
+  fill(els.steps, items);
 }
 
 function render(force) {
+  const { dropId, screen } = parseHash();
+  if (!dropId) {
+    if (!app.drops) return;
+    const key = "drops";
+    renderChrome();
+    if (force || !app.mounted || app.mounted.key !== key) {
+      app.route = "drops";
+      renderChrome();
+      const view = drops.mount(context());
+      app.mounted = { key, view };
+      fill(els.main, offlineBanner(), view.el);
+      window.scrollTo(0, 0);
+    } else if (app.mounted.view.update) app.mounted.view.update(context());
+    return;
+  }
   if (!app.state) return;
-  const route = routeFromHash() || defaultRoute();
-  const key = `${route}|${me() ? app.meId : ""}`;
+  const route = screen || defaultScreen();
+  const key = `${dropId}|${route}|${me() ? app.meId : ""}`;
   renderChrome();
   if (force || !app.mounted || app.mounted.key !== key) {
     if (app.mounted && app.mounted.view.unmount) app.mounted.view.unmount();
     app.route = route;
     renderChrome();
-    const screen = ROUTES.find((r) => r.id === route).screen;
-    const view = screen.mount(context());
+    const view = ROUTES.find((r) => r.id === route).screen.mount(context());
     app.mounted = { key, view };
     fill(els.main, offlineBanner(), view.el);
     window.scrollTo(0, 0);
@@ -171,13 +232,55 @@ function offlineBanner() {
     : null;
 }
 
+async function loadDrops() {
+  try {
+    const res = await api.drops();
+    app.legacy = false;
+    return (res && res.drops) || [];
+  } catch (err) {
+    if (err.status !== 404) throw err;
+    // An older server with one drop: show it as the only one.
+    app.legacy = true;
+    useDrop(null);
+    const state = await api.state();
+    if (app.dropId && app.dropId !== LEGACY) useDrop(app.dropId);
+    return [{ ...state, group: { ...state.group, id: LEGACY } }];
+  }
+}
+
 let polling = false;
+let lastDropsPoll = 0;
 async function poll() {
   if (polling) return;
   polling = true;
   try {
-    const state = await api.state();
+    const { dropId } = parseHash();
     const wasOffline = app.offline;
+    if (!dropId) {
+      if (app.dropId) leaveDrop();
+      if (Date.now() - lastDropsPoll >= DROPS_POLL_MS || !app.drops || wasOffline) {
+        lastDropsPoll = Date.now();
+        const list = await loadDrops();
+        app.offline = false;
+        if (app.legacy && list.length === 1) {
+          location.replace(dropHref(LEGACY));
+          return;
+        }
+        const text = JSON.stringify(list);
+        if (text !== app.dropsText || wasOffline || !app.mounted) {
+          app.drops = list;
+          app.dropsText = text;
+          if (list[0] && list[0].clock) setServerNow(list[0].clock.now);
+          render(false);
+        }
+      }
+      return;
+    }
+    if (app.dropId !== dropId) {
+      if (dropId === LEGACY) app.legacy = true;
+      enterDrop(dropId);
+    }
+    const state = await api.state();
     app.offline = false;
     if (JSON.stringify(state) !== app.stateText || wasOffline || !app.mounted) setState(state);
   } catch (err) {
@@ -185,7 +288,7 @@ async function poll() {
       app.offline = true;
       render(false);
     }
-    if (!app.state) fill(els.main, h("div", { class: "empty-state" }, err.message));
+    if (!app.state && !app.drops) fill(els.main, h("div", { class: "empty-state" }, err.message));
   } finally {
     polling = false;
   }
@@ -194,7 +297,7 @@ async function poll() {
 els.select.addEventListener("change", () => setMe(els.select.value || null));
 
 els.reset.addEventListener("click", async () => {
-  if (!confirm("Reset the demo group? Every seat, contract and check-in starts again.")) return;
+  if (!confirm("Reset this drop? Every seat, contract and check-in in it starts again.")) return;
   els.reset.disabled = true;
   try {
     const res = await api.reset();
@@ -209,8 +312,13 @@ els.reset.addEventListener("click", async () => {
   }
 });
 
-window.addEventListener("hashchange", () => render(false));
+window.addEventListener("hashchange", () => {
+  const { dropId } = parseHash();
+  if (dropId !== app.dropId) {
+    app.mounted = null;
+    poll();
+  } else render(false);
+});
 
-readPlayerFromUrl();
 poll();
 setInterval(poll, POLL_MS);

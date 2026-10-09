@@ -460,3 +460,32 @@ td.r, th.r { text-align: right; }
   * { transition: none !important; animation: none !important; }
 }
 .block .btn.danger { background: transparent; color: var(--ink); border-color: var(--ink); }
+
+/* Drops: a poster grid of tiles, the soonest featured large */
+.drops-title { font-size: clamp(3rem, 10vw, 6.4rem); line-height: 0.86; font-stretch: 62%; }
+.drops-grid { display: grid; gap: var(--space-3); grid-template-columns: 1fr; }
+@media (min-width: 700px) { .drops-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1100px) { .drops-grid { grid-template-columns: repeat(3, 1fr); } .drop-tile.featured { grid-column: span 2; } }
+.drop-tile { display: flex; flex-direction: column; gap: var(--space-2); text-decoration: none; color: inherit; min-height: 300px; transition: transform 0.2s ease; }
+.drop-tile.night { color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+.drop-tile:hover { transform: translateY(-3px); }
+.drop-tile:focus-visible { outline: 4px solid var(--wheat); outline-offset: 4px; }
+.drop-tile h2 { font-size: var(--s3); }
+.drop-tile.featured h2 { font-size: clamp(2.6rem, 6vw, 4.6rem); line-height: 0.9; font-stretch: 62%; }
+.tile-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); }
+.tile-mark { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--wheat); font-family: var(--display); font-weight: 900; font-stretch: 62%; font-size: 2rem; flex: none; }
+.drop-tile.night .tile-mark { background: var(--wheat); color: var(--ink); }
+.featured .tile-mark { width: 96px; height: 96px; font-size: 3rem; }
+.tile-img { width: 72px; height: 72px; border-radius: var(--r); background: #fff; object-fit: contain; }
+.tile-figures { display: grid; grid-template-columns: repeat(3, auto); justify-content: start; gap: var(--space-4); margin-top: auto; }
+.tile-num { font-family: var(--display); font-weight: 900; font-stretch: 62%; font-size: var(--s4); line-height: 0.95; font-variant-numeric: tabular-nums; }
+.featured .tile-num { font-size: clamp(2.6rem, 6vw, 5rem); }
+.tile-dots { display: flex; gap: 6px; }
+.tile-dots i { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 2px currentColor; opacity: 0.6; }
+.tile-dots i.on { background: currentColor; opacity: 1; }
+.tile-foot { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-2); flex-wrap: wrap; border-top: 2px solid rgba(13, 35, 26, 0.18); padding-top: var(--space-2); }
+.drop-tile.night .tile-foot { border-top-color: var(--line); }
+.tile-clock { text-align: right; }
+.tile-count { font-size: var(--s4); }
+.featured .tile-count { font-size: clamp(3rem, 7vw, 5.4rem); }
+.block .pill.verified, .block .pill.money, .block .pill.lead { box-shadow: inset 0 0 0 1.5px rgba(13, 35, 26, 0.35); }
