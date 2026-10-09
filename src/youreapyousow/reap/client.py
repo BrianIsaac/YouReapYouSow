@@ -1293,14 +1293,17 @@ class ReapSandbox(ReapHttpClient):
     line of wire code is exercised against the mock in the tests, not against Reap.
     """
 
-    def __init__(self, *, api_key: SecretStr, base_url: str = SG_SANDBOX_URL) -> None:
+    def __init__(
+        self, *, api_key: SecretStr, base_url: str = SG_SANDBOX_URL, timeout_s: float = 10.0
+    ) -> None:
         """Create a sandbox client.
 
         Args:
             api_key: The sandbox key from ``.env``.
             base_url: The regional sandbox host.
+            timeout_s: Per-request timeout; the sandbox's first quote can take over 10 s.
         """
-        super().__init__(base_url=base_url, api_key=api_key, backend="sandbox")
+        super().__init__(base_url=base_url, api_key=api_key, backend="sandbox", timeout_s=timeout_s)
 
 
 def httpx_delivery(client: httpx.AsyncClient) -> WebhookDelivery:

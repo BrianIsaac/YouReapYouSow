@@ -264,7 +264,9 @@ def build_runtime(
     reap: ReapClient
     secrets: dict[str, SecretStr] = {}
     if settings.reap_backend == "sandbox" and settings.reap_api_key is not None:
-        reap = ReapSandbox(api_key=settings.reap_api_key, base_url=settings.reap_base_url)
+        reap = ReapSandbox(
+            api_key=settings.reap_api_key, base_url=settings.reap_base_url, timeout_s=30
+        )
         if settings.reap_webhook_secret is not None:
             secrets[NOTIFY_PATH] = settings.reap_webhook_secret
         if settings.reap_authorization_secret is not None:
@@ -358,6 +360,9 @@ def build_runtime(
                 purchase,
                 backend=backend,
                 enrollment_id=None if enrollment is None or not live else str(enrollment),
+                fallback=PrizeBuyer(mock_control, purchase, backend="mock", enrollment_id=None)
+                if backend == "sandbox"
+                else None,
             ),
         )
         if not service.has_group():

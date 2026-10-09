@@ -260,6 +260,7 @@ class PrizePurchase(_Frozen):
         final_amount: What was charged.
         intent_id: The gate's intent.
         error: Why it failed, if it did.
+        note: Why it ran where it ran, when that is not the configured backend.
     """
 
     status: str
@@ -273,6 +274,7 @@ class PrizePurchase(_Frozen):
     final_amount: Decimal | None = None
     intent_id: str | None = None
     error: str | None = None
+    note: str | None = None
 
 
 class Result(_Frozen):

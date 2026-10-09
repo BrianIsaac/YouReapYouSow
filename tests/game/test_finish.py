@@ -242,3 +242,23 @@ async def test_the_mock_ignores_a_sandbox_enrolment_in_the_settings(tmp_path: Pa
         assert runtime.buyer.enrollment_id is None
     finally:
         await runtime.aclose()
+
+
+async def test_an_inactive_sandbox_enrolment_buys_on_the_mock_and_says_so(
+    runtime: Runtime,
+) -> None:
+    """No ACTIVE enrolment: the fallback buys on the mock, the note naming why."""
+    play(runtime)
+    _clock(runtime).advance(seconds=21)
+    runtime.game.finalize()
+    mock = PrizeBuyer(runtime.control, runtime.purchase, backend="mock", enrollment_id=None)
+    buyer = PrizeBuyer(
+        runtime.control, runtime.purchase, backend="sandbox", enrollment_id=None, fallback=mock
+    )
+    seen: list[PrizePurchase] = []
+    bought = await buyer.buy(ceiling=Decimal("67.50"), winner="Alice", on_step=seen.append)
+    assert bought.status == "PURCHASED"
+    assert bought.backend == "mock"
+    assert bought.note is not None
+    assert "not ACTIVE" in bought.note
+    assert all(s.note == bought.note for s in seen)

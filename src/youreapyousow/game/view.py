@@ -180,6 +180,7 @@ def purchase_view(purchase: PrizePurchase) -> dict[str, JsonValue]:
         "final_amount": _amount(purchase.final_amount),
         "intent_id": purchase.intent_id,
         "error": purchase.error,
+        "note": purchase.note,
         "stand_in": STAND_IN,
     }
 

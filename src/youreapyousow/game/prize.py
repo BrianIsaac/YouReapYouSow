@@ -10,6 +10,7 @@ The preview quote at start-up is a plain read of the catalogue and a quote, with
 objective and no checkout, so the pool's disclosure can show the landed price.
 """
 
+import asyncio
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ from youreapyousow.purchase import PurchaseConfig
 from youreapyousow.reap.client import ReapClient, ReapError, ReapTransportError
 from youreapyousow.reap.models import (
     CreateItemsQuoteRequest,
+    EnrollmentStatus,
     ProductDetailsRequest,
     QuoteItem,
 )
@@ -147,6 +149,7 @@ class PrizeBuyer:
         *,
         backend: str,
         enrollment_id: str | None,
+        fallback: "PrizeBuyer | None" = None,
     ) -> None:
         """Wire the buyer.
 
@@ -155,11 +158,29 @@ class PrizeBuyer:
             purchase: The prize's purchase file.
             backend: ``sandbox``, ``kwal`` or ``mock``, for the screen.
             enrollment_id: The operator's ACTIVE enrolment on the sandbox, if set.
+            fallback: Buys on the mock when the sandbox enrolment is not ACTIVE.
         """
         self.control = control
         self.purchase = purchase
         self.backend = backend
         self.enrollment_id = enrollment_id
+        self.fallback = fallback
+
+    async def enrolment_active(self) -> bool:
+        """Read the operator's enrolment at Reap now.
+
+        Returns:
+            True only when it reads ``ACTIVE``.
+        """
+        if self.enrollment_id is None:
+            return False
+        try:
+            enrolment = await asyncio.wait_for(
+                self.control.reap.get_enrollment(self.enrollment_id), timeout=20
+            )
+        except (ReapError, ReapTransportError, TimeoutError):
+            return False
+        return enrolment.status == EnrollmentStatus.ACTIVE
 
     async def buy(
         self, *, ceiling: Decimal, winner: str, on_step: Callable[[PrizePurchase], None]
@@ -175,6 +196,21 @@ class PrizeBuyer:
             The purchase: ``PURCHASED`` with the order id, or ``FAILED`` with why.
         """
         state = PrizePurchase(status="BUYING", step="search", backend=self.backend, ceiling=ceiling)
+        if (
+            self.backend == "sandbox"
+            and self.fallback is not None
+            and not await self.enrolment_active()
+        ):
+            note = (
+                "Bought on the local mock of Reap: the operator's sandbox enrolment is not "
+                "ACTIVE yet, and the sandbox refuses a checkout without one."
+            )
+
+            def noted(purchase: PrizePurchase) -> None:
+                on_step(purchase.model_copy(update={"note": note}))
+
+            bought = await self.fallback.buy(ceiling=ceiling, winner=winner, on_step=noted)
+            return bought.model_copy(update={"note": note})
         if self.backend == "sandbox" and self.enrollment_id is None:
             failed = state.model_copy(
                 update={
