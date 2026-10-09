@@ -18,6 +18,25 @@ The gate, run before every commit:
 uv run pytest && uv run ruff check && uv run ruff format --check && uv run pyright
 ```
 
+## What it looks like
+
+The drops, each one prize with three seats and a fixed date range:
+
+![The drops](media/drops.png)
+
+The coach turns a player's own words into a goal contract on the shared 100-point budget:
+
+![The coach and the contract](media/coach.png)
+
+The challenge runs in demo time, a minute to a week, with the rubric scoring every check-in:
+
+![The challenge](media/challenge.png)
+
+The agent buys the prize for the winner through Reap's sandbox: the landed quote, the gate's
+ceiling, the card holder's approval, the order on the hash-chained ledger:
+
+![The result and the ledger](media/result.png)
+
 ## How it works
 
 One drop, one group, three players, one prize. Players join and reserve a 25.00 test USDC
