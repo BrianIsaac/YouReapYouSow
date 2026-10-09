@@ -583,6 +583,12 @@ async def finalize(request: Request, drop_id: str | None = None) -> JSONResponse
             return JSONResponse({"result": None, "state": state_of(drop)})
         if result.purchase is not None and result.purchase.status == "BUYING":
             return refused(GameError("PURCHASE_IN_PROGRESS", "The agent is already buying."))
+        if result.purchase is not None and result.purchase.status == "AWAITING_APPROVAL":
+            return refused(
+                GameError(
+                    "PURCHASE_IN_PROGRESS", "The purchase waits on the card holder's approval."
+                )
+            )
         winner = next(s for s in result.standings if s.player_id == result.winner_id)
         ceiling = drop.service.pool().ceiling
         drop.service.purchase_progress(

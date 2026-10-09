@@ -181,6 +181,9 @@ def purchase_view(purchase: PrizePurchase) -> dict[str, JsonValue]:
         "intent_id": purchase.intent_id,
         "error": purchase.error,
         "note": purchase.note,
+        "approval_url": purchase.approval_url,
+        "approval_expires_at": _iso(purchase.approval_expires_at),
+        "approved_at": _iso(purchase.approved_at),
         "stand_in": STAND_IN,
     }
 
@@ -283,6 +286,15 @@ def summarise(event: LedgerEvent, names: dict[str, str]) -> str:  # noqa: PLR091
             return "Purchase claimed once, under an idempotency key."
         case EventType.CHECKOUT_CREATED:
             return "Checkout created at Reap."
+        case EventType.CHECKOUT_AWAITING_APPROVAL:
+            return (
+                f"Checkout opened on {_reap_where(p)}; waiting for the card holder's "
+                f"approval. Checkout {event.subject_id}."
+            )
+        case EventType.CHECKOUT_EXPIRED:
+            return f"Checkout {event.subject_id} expired before the card holder approved it."
+        case EventType.CHECKOUT_FAILED:
+            return f"Checkout {event.subject_id} failed at Reap."
         case EventType.GROUP_FULFILLED:
             return (
                 f"Group fulfilled; {p.get('surplus_refunded_pro_rata')} surplus refunded pro rata."
@@ -296,6 +308,15 @@ def summarise(event: LedgerEvent, names: dict[str, str]) -> str:  # noqa: PLR091
         case EventType.CHECKOUT_COMPLETED:
             return f"Checkout completed: order {p.get('order_id')}."
         case EventType.PRIZE_PURCHASED:
+            approved = p.get("approved_at")
+            where = "Reap's sandbox" if p.get("backend") == "sandbox" else "the local mock of Reap"
+            if isinstance(approved, str):
+                return (
+                    f"Bought for {p.get('winner_name')}: order {p.get('order_id')}, "
+                    f"{p.get('final_amount')} USD, approved by the card holder at "
+                    f"{datetime.fromisoformat(approved):%H:%M} UTC. A test charge on "
+                    f"{where}; the pool is test USDC."
+                )
             return f"Prize purchased for {p.get('winner_name')}: order {p.get('order_id')}."
         case EventType.PRIZE_PURCHASE_FAILED:
             return f"Prize purchase failed: {p.get('error')}."
@@ -303,6 +324,11 @@ def summarise(event: LedgerEvent, names: dict[str, str]) -> str:  # noqa: PLR091
             return "Group cancelled; every entry refunded."
         case _:
             return event.type.value.replace("_", " ").replace(".", ": ")
+
+
+def _reap_where(payload: dict[str, JsonValue]) -> str:
+    host = str(payload.get("approval_host") or "")
+    return "Reap's sandbox" if "sandbox" in host else "the local mock of Reap"
 
 
 def _landed(payload: dict[str, JsonValue]) -> str:

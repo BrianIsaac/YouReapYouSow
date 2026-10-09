@@ -6,6 +6,10 @@ file, search, details, variant, a landed quote, the authority gate's decision on
 quote's ``finalAmount``, the claim, the checkout under the claim's idempotency key, and
 reads until the order id. Every step lands on the ledger.
 
+When Reap answers the checkout with its hosted approval page, the purchase waits on the
+card holder: it carries the page and its expiry, and ``follow`` re-reads the checkout
+until it completes, fails or the page expires unused.
+
 The preview quote at start-up is a plain read of the catalogue and a quote, with no
 objective and no checkout, so the pool's disclosure can show the landed price.
 """
@@ -14,14 +18,14 @@ import asyncio
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from pydantic import JsonValue
 
 from youreapyousow.authority.lifecycle import LifecycleRules
 from youreapyousow.control import ControlPlane, ControlPlaneError, GrantTerms
-from youreapyousow.domain import Disposition, IntentState, ObjectiveKind
+from youreapyousow.domain import Disposition, IntentState, ObjectiveKind, PurchaseIntent
 from youreapyousow.game.models import CENT, PrizePurchase
 from youreapyousow.purchase import PurchaseConfig
 from youreapyousow.reap.client import ReapClient, ReapError, ReapTransportError
@@ -33,6 +37,10 @@ from youreapyousow.reap.models import (
 )
 
 QUOTE_TRIES = 3
+READ_TIMEOUT_S = 20.0
+_OPEN_STATES = frozenset(
+    {IntentState.EXECUTING, IntentState.AWAITING_APPROVAL, IntentState.OUTCOME_UNKNOWN}
+)
 
 
 @dataclass(frozen=True)
@@ -305,6 +313,10 @@ class PrizeBuyer:
         state = state.model_copy(update={"step": "checkout"})
         on_step(state)
         done = await control.execute_purchase(intent.id)
+        if done.state == IntentState.AWAITING_APPROVAL and done.checkout_id is not None:
+            waiting = await self._awaiting(state, done.checkout_id)
+            on_step(waiting)
+            return waiting
         if done.state != IntentState.COMPLETED or done.order_id is None:
             failed = state.model_copy(
                 update={
@@ -328,3 +340,133 @@ class PrizeBuyer:
         )
         on_step(bought)
         return bought
+
+    async def _awaiting(self, state: PrizePurchase, checkout_id: str) -> PrizePurchase:
+        """Read the checkout's approval page: the card holder's one tap.
+
+        Args:
+            state: The purchase at the checkout step.
+            checkout_id: The checkout awaiting approval.
+
+        Returns:
+            The purchase awaiting approval, with the page and its expiry when readable.
+        """
+        url: str | None = None
+        expires_at: datetime | None = None
+        try:
+            checkout = await asyncio.wait_for(
+                self.control.reap.get_checkout(checkout_id), timeout=READ_TIMEOUT_S
+            )
+        except (ReapError, ReapTransportError, TimeoutError):
+            checkout = None
+        action = checkout.next_action if checkout is not None else None
+        if action is not None:
+            url = action.url
+            expires_at = datetime.fromisoformat(action.expires_at) if action.expires_at else None
+        return state.model_copy(
+            update={
+                "status": "AWAITING_APPROVAL",
+                "step": "approval",
+                "checkout_id": checkout_id,
+                "approval_url": url,
+                "approval_expires_at": expires_at,
+            }
+        )
+
+    async def follow(self, purchase: PrizePurchase, *, now: datetime) -> PrizePurchase:
+        """Re-read a purchase awaiting approval through the control plane, once.
+
+        Args:
+            purchase: The purchase as last recorded.
+            now: The time to judge the approval page's expiry by.
+
+        Returns:
+            ``PURCHASED`` once the checkout completed, ``FAILED`` with why once it failed,
+            expired or its page expired unused, else the purchase unchanged.
+        """
+        if purchase.status != "AWAITING_APPROVAL" or purchase.intent_id is None:
+            return purchase
+        try:
+            intent = await asyncio.wait_for(
+                self.control.purchase_status(purchase.intent_id), timeout=READ_TIMEOUT_S
+            )
+        except TimeoutError:
+            return purchase
+        settled = self._settled(purchase, intent, now)
+        if settled is not None:
+            return settled
+        expires_at = purchase.approval_expires_at
+        if expires_at is not None and now >= expires_at:
+            return purchase.model_copy(
+                update={
+                    "status": "FAILED",
+                    "error": "The approval page expired unused at "
+                    f"{expires_at:%H:%M} UTC; the agent can open a fresh checkout.",
+                }
+            )
+        return purchase
+
+    def _settled(
+        self, purchase: PrizePurchase, intent: PurchaseIntent, now: datetime
+    ) -> PrizePurchase | None:
+        if intent.state in _OPEN_STATES:
+            return None
+        if intent.state == IntentState.COMPLETED and intent.order_id is not None:
+            final = intent.final_amount_usd
+            return purchase.model_copy(
+                update={
+                    "status": "PURCHASED",
+                    "step": "done",
+                    "order_id": intent.order_id,
+                    "final_amount": final if final is not None else purchase.quote_final_amount,
+                    "approved_at": now,
+                    "approval_url": None,
+                }
+            )
+        return purchase.model_copy(
+            update={
+                "status": "FAILED",
+                "step": "reading",
+                "error": f"The checkout ended {intent.state.value} before the order was placed.",
+            }
+        )
+
+    async def retry(
+        self,
+        previous: PrizePurchase,
+        *,
+        ceiling: Decimal,
+        winner: str,
+        now: datetime,
+        on_step: Callable[[PrizePurchase], None],
+    ) -> PrizePurchase:
+        """Open a fresh checkout after the last one's approval page expired unused.
+
+        The last checkout is read once more first, so a late approval is recorded rather
+        than paid for twice. A fresh checkout needs a fresh quote: Reap refuses a second
+        checkout on a quote that already has one. The purchase runs the whole path again,
+        through the same gate, under a new intent and so a new idempotency key.
+
+        Args:
+            previous: The purchase as last recorded, ``FAILED``.
+            ceiling: The pool less its buffer.
+            winner: The winner's name.
+            now: The time to judge the last approval page by.
+            on_step: Called with the purchase as each step begins.
+
+        Returns:
+            The purchase: awaiting approval again, purchased, or failed with why.
+        """
+        if previous.intent_id is not None:
+            try:
+                intent = await asyncio.wait_for(
+                    self.control.purchase_status(previous.intent_id), timeout=READ_TIMEOUT_S
+                )
+            except TimeoutError:
+                intent = None
+            if intent is not None and intent.state == IntentState.COMPLETED:
+                late = self._settled(previous, intent, now)
+                if late is not None:
+                    on_step(late)
+                    return late
+        return await self.buy(ceiling=ceiling, winner=winner, on_step=on_step)

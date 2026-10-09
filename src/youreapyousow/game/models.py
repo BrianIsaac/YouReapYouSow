@@ -249,7 +249,7 @@ class PrizePurchase(_Frozen):
     """The agent's prize purchase, as the screen shows it.
 
     Attributes:
-        status: ``BUYING``, ``PURCHASED`` or ``FAILED``.
+        status: ``BUYING``, ``AWAITING_APPROVAL``, ``PURCHASED`` or ``FAILED``.
         step: The step the agent is on.
         backend: ``sandbox``, ``kwal`` or ``mock``.
         quote_final_amount: The landed quote the gate decided on.
@@ -261,6 +261,9 @@ class PrizePurchase(_Frozen):
         intent_id: The gate's intent.
         error: Why it failed, if it did.
         note: Why it ran where it ran, when that is not the configured backend.
+        approval_url: Reap's hosted page where the card holder approves the charge.
+        approval_expires_at: When that page stops accepting the approval.
+        approved_at: When the agent first read the checkout completed after approval.
     """
 
     status: str
@@ -275,6 +278,9 @@ class PrizePurchase(_Frozen):
     intent_id: str | None = None
     error: str | None = None
     note: str | None = None
+    approval_url: str | None = None
+    approval_expires_at: datetime | None = None
+    approved_at: datetime | None = None
 
 
 class Result(_Frozen):

@@ -1163,11 +1163,26 @@ class GameService:
             ),
         )
 
+    def awaiting_purchase(self) -> PrizePurchase | None:
+        """Return the purchase while it waits on the card holder's approval.
+
+        Returns:
+            The purchase, or None when there is nothing to re-read.
+        """
+        group = self._current().record
+        purchase = group.result.purchase if group.result is not None else None
+        if group.status != GroupStatus.FINALIZED or purchase is None:
+            return None
+        return purchase if purchase.status == "AWAITING_APPROVAL" else None
+
     def record_purchase(self, purchase: PrizePurchase) -> Group:
         """Record the purchase's outcome: on an order id, the group is fulfilled.
 
+        A purchase awaiting the card holder's approval is kept on the result without a
+        ledger event of its own: the checkout's ``checkout.awaiting_approval`` says it.
+
         Args:
-            purchase: The finished purchase.
+            purchase: The purchase, finished or awaiting approval.
 
         Returns:
             The group.
@@ -1181,7 +1196,9 @@ class GameService:
         update: dict[str, object] = {"result": result.model_copy(update={"purchase": purchase})}
         pool = self.pool()
         with self.db.transaction():
-            if purchase.status == "PURCHASED":
+            if purchase.status == "AWAITING_APPROVAL":
+                self._save_group(stored, group.model_copy(update=update))
+            elif purchase.status == "PURCHASED":
                 update["status"] = GroupStatus.FULFILLED
                 stored = self._save_group(stored, group.model_copy(update=update))
                 charged = purchase.final_amount or Decimal(0)
@@ -1197,6 +1214,9 @@ class GameService:
                         "winner_id": result.winner_id,
                         "winner_name": winner.name if winner else None,
                         "backend": purchase.backend,
+                        "approved_at": (
+                            purchase.approved_at.isoformat() if purchase.approved_at else None
+                        ),
                         "stand_in": STAND_IN,
                     },
                     refs={"intent": purchase.intent_id} if purchase.intent_id else None,
