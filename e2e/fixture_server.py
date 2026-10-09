@@ -129,7 +129,17 @@ DROPS = [
     ),
 ]
 RUBRIC_VERSION = "rubric-v1"
-SEEDS = ("open", "intake", "agreement", "active", "dispute", "fulfilled", "cancelled")
+SEEDS = (
+    "open",
+    "intake",
+    "agreement",
+    "active",
+    "dispute",
+    "fulfilled",
+    "awaiting",
+    "lapsed",
+    "cancelled",
+)
 
 GOALS: dict[str, dict[str, Any]] = {
     "push_up_improvement": {
@@ -858,8 +868,12 @@ class Room:
                 return e
         raise Refusal("UNKNOWN_EVENT", "No disputed check-in with that id.", 404)
 
-    def finalize(self) -> dict[str, Any]:
+    def finalize(self, approval: str | None = None) -> dict[str, Any]:
         """Names the winner and simulates the agent's purchase.
+
+        Args:
+            approval: ``awaiting`` to leave the checkout on the card holder's approval page,
+                ``lapsed`` for a page that closed unused; None buys at once.
 
         Returns:
             The result.
@@ -891,6 +905,19 @@ class Room:
             "policy.decided", "qt_fixture", "Gate: allow, 71.20 is within the ceiling of 81.00."
         )
         self.append("checkout.created", "chk_fixture", "Checkout created under an idempotency key.")
+        if approval is not None:
+            self.result = {
+                "winner": {
+                    "player_id": winner["player_id"],
+                    "name": winner["name"],
+                    "score": winner["score"],
+                },
+                "standings": board,
+                "tie_break_applied": len(board) > 1 and board[0]["score"] == board[1]["score"],
+                "purchase": None,
+            }
+            self.open_approval(lapsed=approval == "lapsed")
+            return self.result
         order_id = f"ord_{secrets.token_hex(6)}"
         self.append(
             "prize.purchased", order_id, f"Prize purchased for {winner['name']}: order {order_id}."
@@ -923,6 +950,75 @@ class Room:
                 "stand-in for the card the agent charges.",
             },
         }
+        return self.result
+
+    def open_approval(self, *, lapsed: bool = False) -> None:
+        """Leaves the purchase on the card holder's approval page, as the sandbox does.
+
+        Args:
+            lapsed: Whether the page has already closed unused.
+        """
+        assert self.result is not None
+        checkout_id = f"chk_{secrets.token_hex(6)}"
+        self.append(
+            "checkout.awaiting_approval",
+            checkout_id,
+            "Checkout opened on Reap's sandbox; waiting for the card holder's approval. "
+            f"Checkout {checkout_id}.",
+        )
+        expires = utcnow() + (timedelta(minutes=-1) if lapsed else timedelta(minutes=15))
+        purchase: dict[str, Any] = {
+            "status": "AWAITING_APPROVAL",
+            "step": "approval",
+            "backend": "sandbox",
+            "quote_final_amount": "71.20",
+            "ceiling": "81.00",
+            "gate": {
+                "disposition": "allow",
+                "rule": "all_rules_passed",
+                "reason": "71.20 is within the ceiling of 81.00.",
+            },
+            "order_id": None,
+            "checkout_id": checkout_id,
+            "final_amount": None,
+            "error": None,
+            "approval_url": f"https://approve.example.invalid/checkouts?session=ses_{checkout_id}",
+            "approval_expires_at": iso(expires),
+            "approved_at": None,
+            "stand_in": "The pool is test USDC in the Kwal vault on Ink Sepolia, a labelled "
+            "stand-in for the card the agent charges.",
+        }
+        if lapsed:
+            purchase["status"] = "FAILED"
+            purchase["approval_url"] = None
+            purchase["error"] = (
+                f"The approval page expired unused at {expires:%H:%M} UTC; the agent can "
+                "open a fresh checkout."
+            )
+            self.append(
+                "prize.purchase_failed", "grp_main", f"Prize purchase failed: {purchase['error']}"
+            )
+        self.status = "FINALIZED"
+        self.result["purchase"] = purchase
+
+    def retry_purchase(self) -> dict[str, Any]:
+        """Opens a fresh checkout once the last approval page closed unused.
+
+        Returns:
+            The result.
+
+        Raises:
+            Refusal: When there is no unfinished purchase to retry.
+        """
+        purchase = (self.result or {}).get("purchase")
+        if self.status != "FINALIZED" or not purchase:
+            raise Refusal("WRONG_STATE", "There is no unfinished purchase to retry.")
+        if purchase["status"] != "FAILED":
+            raise Refusal(
+                "PURCHASE_IN_PROGRESS", "The approval page is still open for the card holder."
+            )
+        self.open_approval()
+        assert self.result is not None
         return self.result
 
 
@@ -986,6 +1082,9 @@ def seed(room: Room, stage: str) -> None:
     if stage == "fulfilled":
         room.dispute_ends_at = utcnow()
         room.finalize()
+    if stage in ("awaiting", "lapsed"):
+        room.dispute_ends_at = utcnow()
+        room.finalize(approval=stage)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1166,6 +1265,11 @@ class Handler(BaseHTTPRequestHandler):
             self.read_json()
             time.sleep(1.5)
             result = room.finalize()
+            self.send_json(200, {"result": result, "state": room.state()})
+        elif path == "/api/purchase/retry":
+            self.read_json()
+            time.sleep(1.0)
+            result = room.retry_purchase()
             self.send_json(200, {"result": result, "state": room.state()})
         elif path == "/api/reset":
             self.read_json()

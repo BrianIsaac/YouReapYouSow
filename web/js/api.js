@@ -68,6 +68,7 @@ export const api = {
     request("POST", scoped("/dispute"), { player_id: playerId, event_id: eventId, reason }),
   reviewDispute: (eventId, reinstate) => request("POST", scoped("/dispute/review"), { event_id: eventId, reinstate }),
   finalize: () => request("POST", scoped("/finalize"), {}),
+  retryPurchase: () => request("POST", scoped("/purchase/retry"), {}),
   reset: () => request("POST", scoped("/reset"), {}),
   ledger: (afterSeq = 0) => request("GET", scoped(`/ledger?after_seq=${afterSeq}`)),
   events: (playerId) =>

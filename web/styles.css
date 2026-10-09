@@ -404,6 +404,13 @@ td.r, th.r { text-align: right; }
 .order-block { background: var(--money-bg); color: var(--text); border-radius: var(--r); padding: var(--space-3); }
 .order-id { font-family: var(--mono); font-size: var(--s2); font-weight: 800; word-break: break-all; line-height: 1.2; color: var(--money-text); }
 .stand-in { font-size: var(--s-1); color: var(--text-2); border-left: 3px solid var(--accent); padding-left: var(--space-2); }
+.approval { box-shadow: inset 0 0 0 2px var(--warn), var(--shadow); }
+.approval h2 { overflow-wrap: anywhere; }
+.approval-body { display: grid; gap: var(--space-3); align-items: center; }
+@media (min-width: 600px) { .approval-body { grid-template-columns: auto 1fr; } }
+.qr-frame { display: block; justify-self: center; width: 240px; max-width: 100%; padding: 0; background: #fff; border: 1px solid var(--line); border-radius: var(--r); line-height: 0; }
+.qr { width: 100%; height: auto; display: block; border-radius: var(--r); }
+.approval .countdown { font-size: var(--s4); }
 .ledger { font-size: var(--s-1); }
 .ledger td { padding: 10px 8px; border-top: 1px solid var(--line); }
 .ledger tr:first-child td { border-top: 0; }

@@ -3,6 +3,7 @@
 import { h, fill, act, errorLine, showError, pill, countdown, money, msUntil, timeOfDay } from "../dom.js";
 import { api } from "../api.js";
 import { standingsTable, ledgerTail, playersBand, authorityBar } from "../components.js";
+import { qrSvg } from "../qr.js";
 
 // The purchase step last drawn as done, so newly done steps light up in sequence.
 let shownStep = -1;
@@ -18,6 +19,20 @@ const STEPS = [
   ["reading", "Read the order until it has an id"],
   ["done", "Order placed"],
 ];
+
+// Shown only for a checkout that went through Reap's hosted approval page.
+const APPROVAL_STEP = ["approval", "The card holder approves the charge"];
+
+function stepsFor(p) {
+  if (!p.approval_expires_at && !p.approved_at && p.step !== "approval") return STEPS;
+  const at = STEPS.findIndex(([id]) => id === "checkout") + 1;
+  return [...STEPS.slice(0, at), APPROVAL_STEP, ...STEPS.slice(at)];
+}
+
+// A purchase whose approval page closed unused can be reopened with a fresh checkout.
+function approvalLapsed(p) {
+  return Boolean(p && p.status === "FAILED" && p.approval_expires_at && !p.order_id);
+}
 
 const BACKEND_LABEL = {
   sandbox: "Reap sandbox, Agentic module",
@@ -53,10 +68,19 @@ export function mount(ctx) {
     else paint(ctxNow);
   }
 
+  async function retry(button) {
+    buying = true;
+    paint(ctxNow);
+    const res = await act(button, err, "Opening a fresh checkout", () => api.retryPurchase());
+    buying = false;
+    if (res && res.state) ctxNow.setState(res.state);
+    else paint(ctxNow);
+  }
+
   function paint(c) {
     ctxNow = c;
     if (el.contains(document.activeElement) && document.activeElement.tagName === "INPUT") return;
-    fill(el, build(c, { events, buying, err, disputeErr, finalize, editing, setEditing: (id) => { editing = id; paint(ctxNow); }, reload: loadEvents }));
+    fill(el, build(c, { events, buying, err, disputeErr, finalize, retry, editing, setEditing: (id) => { editing = id; paint(ctxNow); }, reload: loadEvents }));
   }
 
   paint(ctx);
@@ -103,7 +127,8 @@ function build(ctx, ui) {
       h(
         "div",
         { class: "stack-lg" },
-        pending || (result && result.purchase && result.purchase.status === "FAILED") || ui.buying ? finishBlock(ctx, ui) : null,
+        result && approvalLapsed(result.purchase) ? retryBlock(ui) : pending || (result && result.purchase && result.purchase.status === "FAILED") || ui.buying ? finishBlock(ctx, ui) : null,
+        result && result.purchase && result.purchase.status === "AWAITING_APPROVAL" ? approvalBlock(state, result) : null,
         result && result.purchase ? purchaseBlock(state, result.purchase) : null,
         ui.buying && !(result && result.purchase) ? buyingBlock() : null,
         h("section", { class: "card stack" }, h("div", { class: "row between" }, h("h2", null, "Final standings"), pill("LOCKED", "Frozen")), standingsTable(state, ctx.meId, standings), result && result.tie_break_applied ? h("p", { class: "small muted" }, `Tie-break applied: ${state.rubric ? state.rubric.tie_break : ""}`) : null),
@@ -157,6 +182,51 @@ function finishBlock(ctx, ui) {
   );
 }
 
+// The card holder's one tap: the hosted approval page as a code to scan, and its expiry.
+function approvalBlock(state, result) {
+  const p = result.purchase;
+  const prize = state.prize ? state.prize.name : "prize";
+  const winner = result.winner ? result.winner.name : "the winner";
+  const where = p.backend === "sandbox" ? "Reap's sandbox" : "the local mock of Reap";
+  return h(
+    "section",
+    { class: "card stack approval", "aria-label": "Approve the charge" },
+    h("div", { class: "row between" }, h("div", { class: "eyebrow" }, "Waiting for the card holder"), pill("AWAITING_APPROVAL")),
+    h("h2", null, `The agent has bought the ${prize} for ${winner}. Approve the charge on your phone.`),
+    h(
+      "div",
+      { class: "approval-body" },
+      p.approval_url ? h("a", { class: "qr-frame", href: p.approval_url, target: "_blank", rel: "noopener" }, qrSvg(p.approval_url, "Code for Reap's approval page")) : null,
+      h(
+        "div",
+        { class: "stack" },
+        h("p", { class: "small muted" }, "Scan the code with the card holder's phone and confirm with its passkey. The order lands here on its own."),
+        h("div", { class: "stack" }, h("div", { class: "label" }, "The page closes in"), countdown(p.approval_expires_at, { done: "The page has closed" }), p.approval_expires_at ? h("p", { class: "tiny muted" }, `At ${timeOfDay(p.approval_expires_at)}.`) : null),
+        p.approval_url ? h("a", { class: "btn ghost", href: p.approval_url, target: "_blank", rel: "noopener" }, "Open the approval page") : null,
+      ),
+    ),
+    h("p", { class: "stand-in" }, `A test charge on ${where}, not a real one; the pool is test USDC.`),
+  );
+}
+
+function retryBlock(ui) {
+  const button = h("button", { class: "btn primary block", type: "button" }, "Open a fresh checkout");
+  button.addEventListener("click", () => ui.retry(button));
+  if (ui.buying) {
+    button.disabled = true;
+    button.textContent = "Opening a fresh checkout";
+  }
+  return h(
+    "section",
+    { class: "card stack" },
+    h("div", { class: "eyebrow" }, "The approval page closed"),
+    h("p", { class: "lead" }, "The card holder did not approve the charge in time, so nothing was bought."),
+    ui.err,
+    button,
+    h("p", { class: "small muted" }, "The agent quotes the prize again, checks it against the pool's ceiling, and opens a new approval page."),
+  );
+}
+
 function buyingBlock() {
   return h(
     "section",
@@ -167,8 +237,9 @@ function buyingBlock() {
 }
 
 function purchaseBlock(state, p) {
-  const at = STEPS.findIndex(([id]) => id === p.step);
-  const doneUpTo = p.status === "PURCHASED" ? STEPS.length - 1 : at - 1;
+  const steps = stepsFor(p);
+  const at = steps.findIndex(([id]) => id === p.step);
+  const doneUpTo = p.status === "PURCHASED" ? steps.length - 1 : at - 1;
   const firstNew = shownStep;
   shownStep = Math.max(shownStep, doneUpTo);
   const gate = p.gate || {};
@@ -181,10 +252,10 @@ function purchaseBlock(state, p) {
     h(
       "ol",
       { class: "purchase-steps" },
-      STEPS.map(([id, label], i) => {
+      steps.map(([id, label], i) => {
         let cls = "todo";
         if (p.status === "PURCHASED" || i < at) cls = "done";
-        else if (i === at) cls = p.status === "FAILED" ? "failed" : p.status === "BUYING" ? "now" : "done";
+        else if (i === at) cls = p.status === "FAILED" ? "failed" : p.status === "BUYING" || p.status === "AWAITING_APPROVAL" ? "now" : "done";
         const arriving = cls === "done" && i > firstNew;
         if (arriving) cls += " arrive";
         return h("li", { class: cls, style: arriving ? { "--delay": `${(i - firstNew - 1) * 0.22}s` } : null }, h("span", { class: "dot" }), h("span", null, label), h("span", { class: "tiny muted" }, id === "gate" && gate.disposition ? gateWord : ""));
@@ -198,6 +269,7 @@ function purchaseBlock(state, p) {
       h("div", { class: "line" }, h("span", { class: "muted" }, "Authority gate"), h("span", { class: `pill ${gateCls}` }, gateWord)),
       gate.reason ? h("div", { class: "line small muted" }, gate.reason) : null,
       p.final_amount ? h("div", { class: "line" }, h("span", { class: "muted" }, "Charged"), h("b", { class: "num" }, money(p.final_amount, "USD"))) : null,
+      p.approved_at ? h("div", { class: "line" }, h("span", { class: "muted" }, "Approved by the card holder"), h("b", { class: "num" }, timeOfDay(p.approved_at))) : null,
       h("div", { class: "line" }, h("span", { class: "muted" }, "Through"), h("span", { style: { textAlign: "right" } }, BACKEND_LABEL[p.backend] || p.backend || "-")),
     ),
     h("div", { class: "block soft", style: { padding: "18px" } }, authorityBar(state, p.quote_final_amount)),

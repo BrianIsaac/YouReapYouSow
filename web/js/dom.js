@@ -113,6 +113,7 @@ const PILLS = {
   LOCKED: ["verified", "Locked"],
   ACCEPTED: ["verified", "Accepted"],
   BUYING: ["money", "Buying"],
+  AWAITING_APPROVAL: ["pending", "Awaiting approval"],
   PURCHASED: ["verified", "Purchased"],
   FAILED: ["rejected", "Failed"],
 };
