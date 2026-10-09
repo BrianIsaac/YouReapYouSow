@@ -14,6 +14,7 @@ export function mount(ctx) {
 function build(ctx) {
   const list = (ctx.drops || []).map(asDrop).filter(Boolean);
   const order = list.slice().sort((a, b) => rankOf(a) - rankOf(b));
+  anyFeatured = order.some((d) => d.featured);
   return [
     h(
       "section",
@@ -27,19 +28,22 @@ function build(ctx) {
   ];
 }
 
-// Open drops first, soonest deadline first; then live ones; finished ones last.
+// The featured drop first; then open drops, soonest start first; then live ones; finished last.
 function rankOf(d) {
+  if (d.featured) return -1;
   const s = d.group.status;
   const base = s === "OPEN_FOR_JOINING" ? 0 : ["INTAKE", "READY_FOR_ACCEPTANCE", "ACTIVE"].includes(s) ? 1 : 2;
-  const t = Date.parse(d.group.enrolment_deadline || d.group.ends_at || "") || 0;
+  const t = Date.parse(d.group.starts_at || d.group.enrolment_deadline || d.group.ends_at || "") || 0;
   return base * 1e13 + t;
 }
 
 // Accepts a drop as a full state ({group, prize, pool, players}) or as a flat summary.
 function asDrop(d) {
   if (!d) return null;
-  if (d.group) return d;
-  const seats = Array.isArray(d.players) ? d.players : Array.from({ length: d.seats_taken || 0 }, (_, i) => ({ seat: i + 1, name: "" }));
+  if (d.group) return { ...d, featured: Boolean(d.drop && d.drop.featured), note: d.drop ? d.drop.note : null };
+  const taken = d.seats ? d.seats.taken : d.seats_taken || 0;
+  const seats = Array.isArray(d.players) ? d.players : Array.from({ length: taken }, (_, i) => ({ seat: i + 1, name: "" }));
+  const atCapacity = d.pool_at_capacity || {};
   return {
     group: {
       id: d.id || d.drop_id,
@@ -47,20 +51,22 @@ function asDrop(d) {
       status: d.status,
       entry_amount: d.entry_amount,
       min_players: d.min_players || 3,
-      max_players: d.max_players || 3,
+      max_players: (d.seats && d.seats.max) || d.max_players || 3,
       duration_days: d.duration_days,
       enrolment_deadline: d.enrolment_deadline,
-      scheduled_start: d.starts_at || d.scheduled_start,
-      scheduled_end: d.ends_at || d.scheduled_end,
-      started_at: d.started_at,
+      starts_at: d.starts_at,
       ends_at: d.ends_at,
     },
+    featured: Boolean(d.featured),
+    note: d.note || null,
     clock: d.clock,
     prize: d.prize || {},
-    pool: d.pool || {},
+    pool: { gross: (Number(d.entry_amount) || 0) * taken, at_capacity: atCapacity },
     players: seats,
   };
 }
+
+let anyFeatured = false;
 
 function tile(d, i) {
   const g = d.group;
@@ -70,11 +76,12 @@ function tile(d, i) {
   const live = g.status === "ACTIVE";
   const mine = prefs.get(`yrys.player.${g.id}`);
   const seated = mine && players.some((p) => p.player_id === mine);
-  const full = (Number(g.entry_amount) || 0) * g.max_players;
+  const full = (d.pool.at_capacity && Number(d.pool.at_capacity.gross)) || (Number(g.entry_amount) || 0) * g.max_players;
+  const opensAt = g.starts_at || g.enrolment_deadline;
   const initial = ((d.prize && (d.prize.merchant || d.prize.name)) || "?").trim().charAt(0).toUpperCase();
   return h(
     "a",
-    { class: `drop-tile block ${tone} ${i === 0 ? "featured" : ""}`.trim(), href: `#/d/${encodeURIComponent(g.id)}`, "aria-label": `${g.title}: ${statusWords(g.status)}` },
+    { class: `drop-tile block ${tone} ${d.featured || (i === 0 && !anyFeatured) ? "featured" : ""}`.trim(), href: `#/d/${encodeURIComponent(g.id)}`, "aria-label": `${g.title}: ${statusWords(g.status)}` },
     h(
       "div",
       { class: "tile-head" },
@@ -83,6 +90,7 @@ function tile(d, i) {
     ),
     h("h2", null, g.title),
     h("p", { class: "small muted" }, d.prize && d.prize.name ? d.prize.name : ""),
+    d.note ? h("p", { class: "tiny muted" }, d.note) : null,
     h(
       "div",
       { class: "tile-figures" },
@@ -96,7 +104,7 @@ function tile(d, i) {
       { class: "tile-foot" },
       h("div", null, h("div", { class: "label" }, `${g.duration_days} days in demo time`), h("div", { class: "small" }, dateRange(d))),
       open || live
-        ? h("div", { class: "tile-clock" }, h("div", { class: "label" }, open ? "Enrolment closes in" : "Ends in"), countdown(open ? g.enrolment_deadline : g.ends_at, { done: "Closed", cls: "countdown tile-count" }))
+        ? h("div", { class: "tile-clock" }, h("div", { class: "label" }, open ? "Starts in" : "Ends in"), countdown(open ? opensAt : g.ends_at, { done: open ? "Starting" : "Closed", cls: "countdown tile-count" }))
         : null,
     ),
   );
@@ -119,7 +127,7 @@ function statusWords(status) {
 function dateRange(d) {
   const g = d.group;
   const perDay = d.clock && d.clock.seconds_per_day;
-  const start = Date.parse(g.started_at || g.scheduled_start || g.enrolment_deadline || "");
+  const start = Date.parse(g.starts_at || g.started_at || g.scheduled_start || g.enrolment_deadline || "");
   let end = Date.parse(g.ends_at || g.scheduled_end || "");
   if (Number.isNaN(end) && !Number.isNaN(start) && perDay) end = start + perDay * g.duration_days * 1000;
   if (Number.isNaN(start)) return "";

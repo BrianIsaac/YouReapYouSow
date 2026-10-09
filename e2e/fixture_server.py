@@ -373,6 +373,7 @@ class Room:
                 "currency": "USD",
                 "enrolment_deadline": iso(self.enrolment_deadline),
                 "duration_days": spec.duration_days,
+                "starts_at": iso(self.scheduled_start),
                 "scheduled_start": iso(self.scheduled_start),
                 "scheduled_end": iso(
                     self.scheduled_start
@@ -462,6 +463,49 @@ class Room:
             "result": self.result,
             "ledger_tail": self.ledger[-8:],
             "ledger_intact": True,
+            "drop": self.summary(),
+        }
+
+    def summary(self) -> dict[str, Any]:
+        """Builds the contract's drop summary.
+
+        Returns:
+            The summary.
+        """
+        spec = self.spec
+        end = self.ends_at or self.scheduled_start + timedelta(
+            seconds=self.seconds_per_day * spec.duration_days
+        )
+        return {
+            "drop_id": spec.id,
+            "title": spec.title,
+            "featured": spec.id == DROPS[0].id,
+            "prize": {
+                "name": spec.prize,
+                "merchant": spec.merchant,
+                "list_price": f"{spec.list_price:.2f}",
+                "currency": "USD",
+                "image_url": None,
+                "quote": {"final_amount": f"{spec.quote:.2f}"},
+                "live_purchase": spec.id == DROPS[0].id,
+            },
+            "entry_amount": f"{spec.entry:.2f}",
+            "currency": "USD",
+            "seats": {"taken": len(self.players), "max": 3},
+            "status": self.status,
+            "starts_at": iso(self.started_at or self.scheduled_start),
+            "ends_at": iso(end),
+            "duration_days": spec.duration_days,
+            "pool_at_capacity": {
+                "entries": 3,
+                "gross": f"{spec.entry * 3:.2f}",
+                "buffer": f"{spec.entry * 0.3:.2f}",
+                "ceiling": f"{spec.ceiling:.2f}",
+                "surplus": f"{spec.ceiling - spec.quote:.2f}",
+            },
+            "note": None
+            if spec.id == DROPS[0].id
+            else "Fixture drop: its purchase runs on the mock.",
         }
 
     def join(self, name: str) -> Player:
@@ -1015,7 +1059,9 @@ class Handler(BaseHTTPRequestHandler):
         """
         try:
             if path == "/api/drops":
-                self.send_json(200, {"drops": [r.state() for r in self.rooms.values()]})
+                for r in self.rooms.values():
+                    r.tick()
+                self.send_json(200, {"drops": [r.summary() for r in self.rooms.values()]})
                 return
             parts = path.split("/")
             if path.startswith("/api/drops/") and len(parts) >= 4:
