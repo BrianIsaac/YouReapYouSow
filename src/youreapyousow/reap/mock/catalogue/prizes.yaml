@@ -1,7 +1,7 @@
 # The prize drop's item, as the sandbox lists it on 9 October 2026 (merchant Keychron,
 # Keychron B40 Wireless Keyboard, USD 49.99, one option Color: Deep Black). Mock data:
-# the shipping figure is illustrative, chosen so the landed quote sits under a pool of
-# three 30.00 entries less its 10% buffer (81.00): 49.99 + 18.00 = 67.99.
+# the shipping figure is the sandbox's quote that day (7.50 to Singapore, tax 0), so the
+# landed quote, 57.49, sits under a pool of three 25.00 entries less its 10% buffer (67.50).
 name: prizes
 description: The prize drop's keyboard, from one merchant, shipped to Singapore.
 currency: USD
@@ -16,7 +16,7 @@ merchants:
     shipping_options:
       - id: keychron-standard
         name: Standard International
-        price: "18"
+        price: "7.50"
         selected: true
     products:
       - id: prd-keychron-b40

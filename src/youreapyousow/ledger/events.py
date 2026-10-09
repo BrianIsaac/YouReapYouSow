@@ -79,6 +79,28 @@ class EventType(StrEnum):
     # Shape (b): the machine that buys its own fix.
     FAULT_DETECTED = "fault.detected"
     PART_MAPPED = "part.mapped"
+    # The challenge: the group, its seats and entries, contracts, scores, the prize.
+    GROUP_OPENED = "group.opened"
+    ENTRY_RESERVED = "entry.reserved"
+    ENTRY_REFUNDED = "entry.refunded"
+    GROUP_INTAKE = "group.intake"
+    CONTRACT_PROPOSED = "contract.proposed"
+    CONTRACT_LOCKED = "contract.locked"
+    GROUP_READY = "group.ready"
+    CONTRACT_ACCEPTED = "contract.accepted"
+    RUBRIC_LOCKED = "rubric.locked"
+    GROUP_STARTED = "group.started"
+    SCORE_RECORDED = "score.recorded"
+    SCORE_DISPUTED = "score.disputed"
+    SCORE_REVIEWED = "score.reviewed"
+    STANDINGS_FROZEN = "standings.frozen"
+    DISPUTE_WINDOW_OPENED = "dispute_window.opened"
+    GROUP_FINALIZED = "group.finalized"
+    PRIZE_PURCHASED = "prize.purchased"
+    PRIZE_PURCHASE_FAILED = "prize.purchase_failed"
+    GROUP_FULFILLED = "group.fulfilled"
+    GROUP_REFUNDING = "group.refunding"
+    GROUP_CANCELLED = "group.cancelled"
 
 
 class LedgerEvent(BaseModel):
