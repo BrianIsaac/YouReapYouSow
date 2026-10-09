@@ -122,13 +122,13 @@ main.wrap { padding-top: var(--space-4); padding-bottom: var(--space-5); }
 .block.wheat { background: var(--wheat); color: var(--ink); }
 .block.field { background: var(--field); color: var(--ink); }
 .block.sky { background: var(--sky); color: var(--ink); }
-.block.paper, .sheet { background: var(--paper); color: var(--ink); }
+.block.paper, .sheet { background: var(--paper); color: var(--ink); color-scheme: light; }
 .block.night { background: var(--night-2); }
 .block .label, .label { font-size: var(--s-1); font-weight: 700; }
-.block.wheat .muted, .block.field .muted, .block.sky .muted, .block.paper .muted, .sheet .muted { color: var(--ink-2); }
+.block.wheat .muted, .block.field .muted, .block.sky .muted, .block.paper .muted, :is(.sheet, .paper, .contract) .muted { color: var(--ink-2); }
 
 .eyebrow { font-size: var(--s-1); color: var(--text-3); font-weight: 700; }
-.sheet .eyebrow, .block .eyebrow { color: var(--ink-2); }
+:is(.sheet, .paper, .contract) .eyebrow, .block .eyebrow { color: var(--ink-2); }
 .muted { color: var(--text-2); }
 .small { font-size: var(--s-1); }
 .tiny { font-size: 0.74rem; }
@@ -209,25 +209,25 @@ main.wrap { padding-top: var(--space-4); padding-bottom: var(--space-5); }
 .btn.ghost { background: transparent; color: var(--text); border-color: var(--line); }
 .btn.ghost:hover { border-color: var(--text); filter: none; }
 .btn.danger { background: transparent; color: var(--crimson); border-color: var(--crimson); }
-.sheet .btn.ghost, .block .btn.ghost { color: var(--ink); border-color: rgba(13, 35, 26, 0.3); }
-.sheet .btn.ghost:hover, .block .btn.ghost:hover { border-color: var(--ink); }
-.block .btn:not(.ghost), .sheet .btn.primary { background: var(--ink); border-color: var(--ink); color: var(--text); }
+:is(.sheet, .paper, .contract) .btn.ghost, .block .btn.ghost { color: var(--ink); border-color: rgba(13, 35, 26, 0.3); }
+:is(.sheet, .paper, .contract) .btn.ghost:hover, .block .btn.ghost:hover { border-color: var(--ink); }
+.block .btn:not(.ghost), :is(.sheet, .paper, .contract) .btn.primary { background: var(--ink); border-color: var(--ink); color: var(--text); }
 .btn.block-btn, .btn.block { width: 100%; }
 .btn[disabled] { opacity: 0.4; cursor: not-allowed; filter: none; }
 .footer .btn { min-height: 44px; padding: 0 16px; font-size: var(--s-1); }
 .btn:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible {
   outline: 3px solid var(--wheat); outline-offset: 3px;
 }
-.sheet .btn:focus-visible, .sheet input:focus-visible, .sheet textarea:focus-visible, .block .btn:focus-visible { outline-color: var(--ink); }
+:is(.sheet, .paper, .contract) .btn:focus-visible, :is(.sheet, .paper, .contract) input:focus-visible, :is(.sheet, .paper, .contract) textarea:focus-visible, .block .btn:focus-visible { outline-color: var(--ink); }
 
 /* Forms */
 label.field { display: block; }
 label.field > span { display: block; font-size: var(--s-1); color: var(--text-2); margin-bottom: 6px; font-weight: 700; }
-.sheet label.field > span { color: var(--ink-2); }
+:is(.sheet, .paper, .contract) label.field > span { color: var(--ink-2); }
 input[type="text"], input[type="number"], textarea, select.input {
   width: 100%; padding: 11px 14px; border: 1.5px solid var(--line); border-radius: var(--r); background: var(--night); color: var(--text);
 }
-.sheet input[type="text"], .sheet input[type="number"], .sheet textarea { background: #fff; color: var(--ink); border-color: #b8c7bb; }
+:is(.sheet, .paper, .contract) input[type="text"], :is(.sheet, .paper, .contract) input[type="number"], :is(.sheet, .paper, .contract) textarea { background: #fff; color: var(--ink); border-color: #b8c7bb; }
 input[type="text"], input[type="number"], select.input { min-height: 52px; }
 input:focus, textarea:focus, select:focus { border-color: var(--wheat); }
 textarea { resize: vertical; min-height: 56px; }
@@ -241,24 +241,24 @@ textarea { resize: vertical; min-height: 56px; }
   font-size: var(--s-1); font-weight: 800; white-space: nowrap; line-height: 1.2;
   background: var(--night-3); color: var(--text-2);
 }
-.sheet .pill, .block .pill { background: rgba(13, 35, 26, 0.12); color: var(--ink); }
+:is(.sheet, .paper, .contract) .pill, .block .pill { background: rgba(13, 35, 26, 0.12); color: var(--ink); }
 .pill::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
-.pill.pending, .sheet .pill.pending, .block .pill.pending { background: transparent; color: var(--amber); box-shadow: inset 0 0 0 2px var(--amber); }
-.sheet .pill.pending, .block .pill.pending { color: #7a5200; box-shadow: inset 0 0 0 2px #b07a10; }
+.pill.pending, :is(.sheet, .paper, .contract) .pill.pending, .block .pill.pending { background: transparent; color: var(--amber); box-shadow: inset 0 0 0 2px var(--amber); }
+:is(.sheet, .paper, .contract) .pill.pending, .block .pill.pending { color: #7a5200; box-shadow: inset 0 0 0 2px #b07a10; }
 .pill.pending::before { background: transparent; box-shadow: inset 0 0 0 2px currentColor; }
-.pill.verified, .sheet .pill.verified, .block .pill.verified { background: var(--field); color: var(--ink); }
-.pill.rejected, .sheet .pill.rejected, .block .pill.rejected { background: var(--crimson); color: var(--ink); }
+.pill.verified, :is(.sheet, .paper, .contract) .pill.verified, .block .pill.verified { background: var(--field); color: var(--ink); }
+.pill.rejected, :is(.sheet, .paper, .contract) .pill.rejected, .block .pill.rejected { background: var(--crimson); color: var(--ink); }
 .pill.rejected::before {
   border-radius: 0; width: 11px; height: 11px;
   background: linear-gradient(45deg, transparent 36%, currentColor 36%, currentColor 64%, transparent 64%),
     linear-gradient(-45deg, transparent 36%, currentColor 36%, currentColor 64%, transparent 64%);
 }
-.pill.disputed, .sheet .pill.disputed, .block .pill.disputed { background: var(--lilac); color: var(--ink); }
+.pill.disputed, :is(.sheet, .paper, .contract) .pill.disputed, .block .pill.disputed { background: var(--lilac); color: var(--ink); }
 .pill.disputed::before { border-radius: 2px; }
-.pill.money, .sheet .pill.money, .block .pill.money { background: var(--sky); color: var(--ink); }
+.pill.money, :is(.sheet, .paper, .contract) .pill.money, .block .pill.money { background: var(--sky); color: var(--ink); }
 .pill.money::before { border-radius: 2px; width: 13px; height: 7px; }
-.pill.accent, .sheet .pill.accent { background: var(--night-3); color: var(--text); }
-.sheet .pill.accent, .block .pill.accent { background: rgba(13, 35, 26, 0.12); color: var(--ink); }
+.pill.accent, :is(.sheet, .paper, .contract) .pill.accent { background: var(--night-3); color: var(--text); }
+:is(.sheet, .paper, .contract) .pill.accent, .block .pill.accent { background: rgba(13, 35, 26, 0.12); color: var(--ink); }
 .pill.lead { background: var(--wheat); color: var(--ink); }
 
 /* Group lifecycle: a real sequence */
@@ -272,7 +272,7 @@ textarea { resize: vertical; min-height: 56px; }
 .list { list-style: none; padding: 0; }
 :where(.list) { margin: 0; }
 .list > li { padding: var(--space-2) 0; border-top: 1px solid var(--line); }
-.sheet .list > li { border-top-color: #c9d5cb; }
+:is(.sheet, .paper, .contract) .list > li { border-top-color: #c9d5cb; }
 .list > li:first-child { border-top: 0; }
 table { width: 100%; border-collapse: separate; border-spacing: 0 8px; font-variant-numeric: tabular-nums; }
 th { text-align: left; font-size: var(--s-1); color: var(--text-3); font-weight: 700; padding: 0 12px; }
@@ -322,13 +322,13 @@ td.r, th.r { text-align: right; }
   display: grid; grid-template-columns: 4.2em 1fr auto; gap: var(--space-2); align-items: center;
   padding: 10px 14px; border-radius: var(--r); background: var(--night-3);
 }
-.sheet .milestone { background: var(--paper-2); }
+:is(.sheet, .paper, .contract) .milestone { background: var(--paper-2); }
 .milestone .target { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
 .milestone .when { font-size: var(--s-1); color: var(--text-3); font-weight: 700; }
-.sheet .milestone .when { color: var(--ink-2); }
+:is(.sheet, .paper, .contract) .milestone .when { color: var(--ink-2); }
 .milestone .pts { font-variant-numeric: tabular-nums; font-weight: 800; }
 .milestone.due { background: transparent; box-shadow: inset 0 0 0 2px var(--wheat); }
-.sheet .milestone.due { box-shadow: inset 0 0 0 2px var(--ink); }
+:is(.sheet, .paper, .contract) .milestone.due { box-shadow: inset 0 0 0 2px var(--ink); }
 .milestone.met { background: var(--field); color: var(--ink); }
 .milestone.met .when { color: var(--ink-2); }
 
@@ -342,7 +342,7 @@ td.r, th.r { text-align: right; }
 .composer textarea { flex: 1; min-height: 52px; }
 
 /* Contract: a paper sheet to sign */
-.contract { background: var(--paper); color: var(--ink); border-radius: var(--r-big); }
+.contract { background: var(--paper); color: var(--ink); border-radius: var(--r-big); color-scheme: light; }
 .contract .muted { color: var(--ink-2); }
 .contract.locked { box-shadow: inset 0 8px 0 var(--field); }
 .contract-head { display: flex; justify-content: space-between; gap: var(--space-2); align-items: flex-start; flex-wrap: wrap; }
@@ -415,7 +415,7 @@ td.r, th.r { text-align: right; }
 .order-block { background: var(--sky); color: var(--ink); border-radius: var(--r); padding: var(--space-3); }
 .order-id { font-family: var(--mono); font-size: var(--s2); font-weight: 800; word-break: break-all; line-height: 1.2; }
 .stand-in { font-size: var(--s-1); color: var(--text-2); border-left: 3px solid var(--sky); padding-left: var(--space-2); }
-.sheet .stand-in, .block .stand-in { color: var(--ink-2); border-left-color: var(--ink); }
+:is(.sheet, .paper, .contract) .stand-in, .block .stand-in { color: var(--ink-2); border-left-color: var(--ink); }
 .ledger { font-size: var(--s-1); border-spacing: 0; }
 .ledger td { padding: 10px 8px; border-top: 1px solid var(--line); }
 .ledger tr:first-child td { border-top: 0; }
@@ -460,3 +460,4 @@ td.r, th.r { text-align: right; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+.block .btn.danger { background: transparent; color: var(--ink); border-color: var(--ink); }
