@@ -6,10 +6,19 @@ leaderboard can be recomputed from the events at any time and always gives the s
 """
 
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
-from youreapyousow.game.models import Player, ScoreEvent, ScoreState, Standing
+from youreapyousow.game.models import (
+    EvidenceKind,
+    EvidencePolicy,
+    GoalContract,
+    Player,
+    ScoreEvent,
+    ScoreState,
+    Standing,
+)
 
 RUBRIC_VERSION = "rubric-v1"
 MILESTONE_POINTS = (15, 20, 25, 40)
@@ -130,3 +139,38 @@ def standings(players: list[Player], events: list[ScoreEvent]) -> list[Standing]
         )
         for i, p in enumerate(ordered)
     ]
+
+
+def decide(
+    contract: GoalContract, milestone: int, claimed: Decimal, kind: EvidenceKind
+) -> tuple[ScoreState, int, str]:
+    """Decide a check-in by the rubric alone: the evidence the contract names, the target met.
+
+    Args:
+        contract: The player's accepted contract.
+        milestone: The milestone index.
+        claimed: The value the player claims.
+        kind: What the check-in carried.
+
+    Returns:
+        The state, the points, and the reason in one line.
+    """
+    m = contract.milestones[milestone]
+    unit = contract.target.unit
+    if contract.evidence_policy == EvidencePolicy.PHOTO_OR_CLIP and kind == EvidenceKind.LOG:
+        return ScoreState.REJECTED, 0, "This goal needs a photo or a clip."
+    if claimed < m.target:
+        return (
+            ScoreState.REJECTED,
+            0,
+            f"{_n(claimed)} {unit} is below milestone {milestone + 1}'s target of {_n(m.target)}.",
+        )
+    return (
+        ScoreState.VERIFIED,
+        m.max_points,
+        f"Target {_n(m.target)} {unit} met with a {kind.value}: +{m.max_points}.",
+    )
+
+
+def _n(value: Decimal) -> str:
+    return f"{value.normalize():f}"

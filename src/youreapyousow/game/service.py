@@ -9,6 +9,8 @@ The money is test USDC: an entry is a reservation on the ledger against the vaul
 balance, never a transfer, and a refund is a release of that reservation.
 """
 
+import hashlib
+import mimetypes
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -19,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, JsonValue, ValidationError
 
 from youreapyousow.clock import Clock
 from youreapyousow.game.coach import (
+    MAX_VALUE,
     CoachDraft,
     CoachTurn,
     ContractInvalidError,
@@ -28,23 +31,36 @@ from youreapyousow.game.coach import (
 )
 from youreapyousow.game.models import (
     CENT,
+    Advisory,
     ChatTurn,
     ContractStatus,
     EntryState,
+    EvidenceKind,
+    EvidencePolicy,
     GoalContract,
     Group,
     GroupStatus,
     GroupTerms,
     IntakeState,
     Player,
+    Result,
     ScoreEvent,
+    ScoreState,
 )
-from youreapyousow.game.rubric import RUBRIC_V1, Rubric
+from youreapyousow.game.rubric import (
+    CHECKIN_MIN_INTERVAL_S,
+    RUBRIC_V1,
+    Rubric,
+    decide,
+    effective_states,
+    standings,
+)
 from youreapyousow.ids import new_id
 from youreapyousow.ledger.events import EventType
 from youreapyousow.ledger.ledger import Ledger
 from youreapyousow.store import Database, Records
 
+MAX_EVIDENCE_BYTES = 8 * 1024 * 1024
 STAND_IN = (
     "The pool is test USDC in the Kwal vault on Ink Sepolia, a labelled stand-in for the "
     "card the agent charges. No cash value."
@@ -74,6 +90,42 @@ class GameError(Exception):
         self.code = code
         self.message = message
         self.status = status
+
+
+@dataclass(frozen=True)
+class EvidenceIn:
+    """A check-in's uploaded file.
+
+    Attributes:
+        content: The bytes.
+        content_type: Its media type, ``image/...`` or ``video/...``.
+    """
+
+    content: bytes
+    content_type: str
+
+    def kind(self) -> EvidenceKind:
+        """Say whether it is a photo or a clip.
+
+        Returns:
+            The kind.
+
+        Raises:
+            GameError: If it is neither.
+        """
+        if self.content_type.startswith("image/"):
+            return EvidenceKind.PHOTO
+        if self.content_type.startswith("video/"):
+            return EvidenceKind.CLIP
+        raise GameError("EVIDENCE_TYPE", "Evidence must be a photo or a clip.", 415)
+
+    def suffix(self) -> str:
+        """Return a file suffix for its type.
+
+        Returns:
+            Such as ``.jpg``.
+        """
+        return mimetypes.guess_extension(self.content_type.split(";")[0].strip()) or ".bin"
 
 
 class Pool(BaseModel):
@@ -701,6 +753,169 @@ class GameService:
         self._cancel(stored, f"{player.name} declined the agreement; every entry is refunded.")
         return self.group()
 
+    # Check-ins and scoring
+
+    def checkin_contract(self, player_id: str, milestone: int) -> GoalContract:
+        """Check that a check-in may be made now, before any model is asked.
+
+        Args:
+            player_id: The player.
+            milestone: The milestone index.
+
+        Returns:
+            The player's accepted contract.
+
+        Raises:
+            GameError: If the challenge is not running, the milestone is unknown, not open
+                or already scored, or the player checked in too recently.
+        """
+        self.tick()
+        group = self._require(GroupStatus.ACTIVE).record
+        player = self.player(player_id).record
+        contract = player.contract
+        if contract is None:
+            raise GameError("NO_CONTRACT", "You have no contract.")
+        if not 0 <= milestone < len(contract.milestones):
+            raise GameError("UNKNOWN_MILESTONE", "There is no such milestone.", 422)
+        now = self.clock()
+        if group.started_at is not None and milestone > 0:
+            opens = group.started_at + timedelta(
+                seconds=contract.milestones[milestone - 1].day * group.terms.seconds_per_day
+            )
+            if now < opens:
+                day = contract.milestones[milestone - 1].day
+                raise GameError(
+                    "MILESTONE_NOT_OPEN", f"Milestone {milestone + 1} opens on day {day}."
+                )
+        states = effective_states(self.score_events())
+        for event in self.score_events():
+            if (
+                event.supersedes is None
+                and event.participant_id == player_id
+                and event.milestone == milestone
+                and states.get(event.event_id) in (ScoreState.VERIFIED, ScoreState.DISPUTED)
+            ):
+                raise GameError(
+                    "MILESTONE_ALREADY_SCORED", f"Milestone {milestone + 1} is already scored."
+                )
+        last = player.last_checkin_at
+        if last is not None and (now - last).total_seconds() < CHECKIN_MIN_INTERVAL_S:
+            raise GameError(
+                "RATE_LIMITED", "One check-in every 10 seconds; try again in a moment.", 429
+            )
+        return contract
+
+    def checkin(
+        self,
+        player_id: str,
+        *,
+        milestone: int,
+        value: Decimal,
+        evidence: EvidenceIn | None,
+        note: str = "",
+        advisory: Advisory | None = None,
+    ) -> ScoreEvent:
+        """Record a check-in as a score event decided by the rubric.
+
+        Args:
+            player_id: The player.
+            milestone: The milestone index.
+            value: The value the player claims.
+            evidence: The photo or clip, or None for a log entry.
+            note: The player's note.
+            advisory: The vision model's reading, if one was taken.
+
+        Returns:
+            The score event.
+
+        Raises:
+            GameError: If the check-in is not allowed now, the evidence is missing, too
+                large or not a photo or clip, or the same file was used before.
+        """
+        contract = self.checkin_contract(player_id, milestone)
+        group = self.group()
+        kind = EvidenceKind.LOG
+        digest = None
+        if evidence is not None:
+            kind = evidence.kind()
+            if len(evidence.content) > MAX_EVIDENCE_BYTES:
+                raise GameError("EVIDENCE_TOO_LARGE", "Evidence must be at most 8 MB.", 413)
+            digest = hashlib.sha256(evidence.content).hexdigest()
+            if any(e.evidence_sha256 == digest for e in self.score_events()):
+                raise GameError("DUPLICATE_EVIDENCE", "This file was already used as evidence.")
+        if contract.evidence_policy == EvidencePolicy.PHOTO_OR_CLIP and evidence is None:
+            raise GameError(
+                "EVIDENCE_REQUIRED", "This goal needs a photo or a clip as evidence.", 422
+            )
+        if value < 0 or value > MAX_VALUE:
+            raise GameError("INVALID_VALUE", f"The value must be between 0 and {MAX_VALUE}.", 422)
+        state, delta, reason = decide(contract, milestone, value, kind)
+        if note.strip():
+            reason = f"{reason} Note: {note.strip()[:200]}"
+        evidence_id = None
+        if evidence is not None:
+            evidence_id = new_id("evd")
+            self.evidence_dir.mkdir(parents=True, exist_ok=True)
+            (self.evidence_dir / f"{evidence_id}{evidence.suffix()}").write_bytes(evidence.content)
+        now = self.clock()
+        event = ScoreEvent(
+            event_id=new_id("sev"),
+            seq=len(self.score_events()) + 1,
+            participant_id=player_id,
+            group_id=group.id,
+            milestone=milestone,
+            evidence_id=evidence_id,
+            evidence_kind=kind,
+            evidence_sha256=digest,
+            claimed_value=value,
+            rubric_version=group.rubric_version,
+            at=now,
+            delta=delta,
+            state=state,
+            reason=reason,
+            advisory=advisory,
+        )
+        stored = self.player(player_id)
+        with self.db.transaction():
+            self._scores.insert(event, record_id=event.event_id, objective_id=group.id)
+            self._save_player(stored, stored.record.model_copy(update={"last_checkin_at": now}))
+            self._score_event(EventType.SCORE_RECORDED, group, event)
+        return event
+
+    def _score_event(self, type_: EventType, group: Group, event: ScoreEvent) -> None:
+        self._event(
+            type_,
+            group,
+            event.event_id,
+            event.model_dump(mode="json"),
+            refs={"player": event.participant_id}
+            | ({"supersedes": event.supersedes} if event.supersedes else {}),
+        )
+
+    def evidence_path(self, evidence_id: str) -> Path | None:
+        """Find a stored evidence file.
+
+        Args:
+            evidence_id: The evidence id.
+
+        Returns:
+            Its path, or None if there is none.
+        """
+        if not evidence_id.startswith("evd_") or "/" in evidence_id:
+            return None
+        found = sorted(self.evidence_dir.glob(f"{evidence_id}.*"))
+        return found[0] if found else None
+
+    def replay_scores(self) -> list[ScoreEvent]:
+        """Rebuild the current group's score events from the ledger alone.
+
+        Returns:
+            The events, in order, as the ledger recorded them.
+        """
+        types = [EventType.SCORE_RECORDED, EventType.SCORE_DISPUTED, EventType.SCORE_REVIEWED]
+        events = self.ledger.events(objective_id=self.group().id, types=types)
+        return [ScoreEvent.model_validate(e.payload) for e in events]
+
     # Time
 
     def tick(self, now: datetime | None = None) -> Group:
@@ -726,4 +941,38 @@ class GameService:
                 "The group did not fill, lock its contracts and accept by the deadline; "
                 "every entry is refunded.",
             )
+        elif group.status == GroupStatus.ACTIVE and group.ends_at and now >= group.ends_at:
+            self._freeze(stored, now)
         return self.group()
+
+    def _freeze(self, stored: _Stored[Group], now: datetime) -> None:
+        group = stored.record
+        board = standings(self.players(), self.score_events())
+        result = Result(winner_id=None, standings=tuple(board))
+        window_ends = now + timedelta(seconds=group.terms.dispute_window_s)
+        with self.db.transaction():
+            stored = self._save_group(
+                stored,
+                group.model_copy(update={"status": GroupStatus.RESULTS_PENDING, "result": result}),
+            )
+            self._event(
+                EventType.STANDINGS_FROZEN,
+                group,
+                group.id,
+                {"standings": [s.model_dump(mode="json") for s in board]},
+            )
+            self._save_group(
+                stored,
+                stored.record.model_copy(
+                    update={
+                        "status": GroupStatus.DISPUTE_WINDOW,
+                        "dispute_window_ends_at": window_ends,
+                    }
+                ),
+            )
+            self._event(
+                EventType.DISPUTE_WINDOW_OPENED,
+                group,
+                group.id,
+                {"ends_at": window_ends.isoformat()},
+            )

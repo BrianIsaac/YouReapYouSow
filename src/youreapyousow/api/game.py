@@ -5,13 +5,14 @@ Every route moves the group's clock first (``tick``). A refusal is a 4xx with
 (the coach, the photo reader) happen outside it, so a slow model never blocks the room.
 """
 
-from typing import TYPE_CHECKING, Any
+from decimal import Decimal, InvalidOperation
+from typing import TYPE_CHECKING, Annotated, Any
 
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field, JsonValue
 
-from youreapyousow.game.service import GameError
+from youreapyousow.game.service import MAX_EVIDENCE_BYTES, EvidenceIn, GameError
 from youreapyousow.game.view import contract_view, ledger_view, score_view, state_view
 
 if TYPE_CHECKING:
@@ -300,3 +301,78 @@ async def score_events(request: Request, player_id: str | None = None) -> JSONRe
         if player_id is not None:
             events = [e for e in events if e.participant_id == player_id]
         return JSONResponse({"events": [score_view(e) for e in events]})
+
+
+@router.post("/checkin")
+async def checkin(
+    request: Request,
+    *,
+    player_id: Annotated[str, Form()],
+    milestone: Annotated[int, Form()],
+    value: Annotated[str, Form()],
+    note: Annotated[str, Form()] = "",
+    file: Annotated[UploadFile | None, File()] = None,
+) -> JSONResponse:
+    """Check in against a milestone, with a photo, a clip, or a log entry.
+
+    The rules that need no model are checked first; a photo is then read by the vision
+    model outside the lock, and the rubric decides the points.
+
+    Args:
+        request: The request.
+        player_id: The player.
+        milestone: The milestone index, from 0.
+        value: The value the player claims.
+        note: The player's note.
+        file: The photo or clip, if any.
+
+    Returns:
+        The score event and the state.
+    """
+    runtime = runtime_of(request)
+    try:
+        claimed = Decimal(value)
+    except InvalidOperation:
+        return refused(GameError("INVALID_VALUE", "The value must be a number.", 422))
+    evidence = None
+    if file is not None and file.filename:
+        content = await file.read(MAX_EVIDENCE_BYTES + 1)
+        if content:
+            evidence = EvidenceIn(content, file.content_type or "application/octet-stream")
+    try:
+        async with runtime.game_lock:
+            contract = runtime.game.checkin_contract(player_id, milestone)
+            if evidence is not None:
+                evidence.kind()
+        advisory = None
+        if evidence is not None:
+            advisory = await runtime.verifier.read(evidence, contract, milestone, claimed)
+        async with runtime.game_lock:
+            event = runtime.game.checkin(
+                player_id,
+                milestone=milestone,
+                value=claimed,
+                evidence=evidence,
+                note=note,
+                advisory=advisory,
+            )
+            return JSONResponse({"event": score_view(event), "state": state_of(runtime)})
+    except GameError as error:
+        return refused(error)
+
+
+@router.get("/evidence/{evidence_id}", response_model=None)
+async def evidence_file(evidence_id: str, request: Request) -> Response:
+    """Return a stored photo or clip.
+
+    Args:
+        evidence_id: The evidence id.
+        request: The request.
+
+    Returns:
+        The file, or a 404.
+    """
+    path = runtime_of(request).game.evidence_path(evidence_id)
+    if path is None:
+        return refused(GameError("UNKNOWN_EVIDENCE", "No such evidence.", 404))
+    return FileResponse(path)

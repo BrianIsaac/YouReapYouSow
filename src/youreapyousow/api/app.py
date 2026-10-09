@@ -27,9 +27,10 @@ from youreapyousow.clock import Clock, utc_now
 from youreapyousow.config import ConfigError, Settings
 from youreapyousow.control import ControlPlane, Operator, mock_card_entry, need_judge_for
 from youreapyousow.game.coach import Coach
-from youreapyousow.game.llm import Link, build_links
+from youreapyousow.game.llm import build_links
 from youreapyousow.game.models import GroupTerms
 from youreapyousow.game.service import GameService
+from youreapyousow.game.verifier import Verifier
 from youreapyousow.kwal.client import KwalClient
 from youreapyousow.kwal.session import KwalSessionError
 from youreapyousow.ledger.ledger import Ledger
@@ -82,7 +83,7 @@ class Runtime:
         clock: Time source.
         game: The challenge's state machine.
         coach: The intake coach.
-        vision: The photo reader's model chain.
+        verifier: The photo reader.
         purchase: The prize's purchase file, when it loads.
         game_lock: Serialises the challenge's mutations.
         prize: The prize block of the polled state.
@@ -98,7 +99,7 @@ class Runtime:
     clock: Clock
     game: GameService
     coach: Coach
-    vision: list[Link]
+    verifier: Verifier
     purchase: PurchaseConfig | None
     game_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     prize: dict[str, JsonValue] = field(default_factory=dict[str, JsonValue])
@@ -251,7 +252,7 @@ def build_runtime(
         clock,
         game,
         coach,
-        build_links(settings, outbound, "vision"),
+        Verifier(build_links(settings, outbound, "vision")),
         purchase,
     )
     runtime.prize = {

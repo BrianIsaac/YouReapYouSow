@@ -1,5 +1,6 @@
 """The challenge's routes through the real app on the mock: join to a running challenge."""
 
+import json
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -8,10 +9,13 @@ import pytest
 from fastapi import FastAPI
 
 from tests.game.helpers import DRAFTS
+from tests.game.test_coach import FakeChat
 from youreapyousow.api.app import Runtime, build_runtime, create_app
 from youreapyousow.config import Settings
 from youreapyousow.game.coach import Coach, CoachTurn
+from youreapyousow.game.llm import Link
 from youreapyousow.game.models import ChatTurn
+from youreapyousow.game.verifier import Verifier
 from youreapyousow.market.service import MarketMode
 
 pytestmark = pytest.mark.anyio
@@ -58,6 +62,8 @@ async def http(tmp_path: Path) -> AsyncIterator[httpx.AsyncClient]:
     async def factory() -> Runtime:
         runtime = build_runtime(settings)
         runtime.coach = ScriptedCoach()
+        reading = json.dumps({"shows": True, "count": 9, "note": "nine push-ups"})
+        runtime.verifier = Verifier([Link("openai:fake", FakeChat("m", [reading] * 5))])
         return runtime
 
     app: FastAPI = create_app(factory)
@@ -108,3 +114,45 @@ async def test_a_refusal_has_a_code_and_a_line(http: httpx.AsyncClient) -> None:
     malformed = await http.post("/api/join", json={})
     assert malformed.status_code == 422
     assert malformed.json()["error"]["code"] == "INVALID_REQUEST"
+
+
+async def _active(http: httpx.AsyncClient) -> list[str]:
+    ids: list[str] = []
+    for name in ("Alice", "Ben", "Chloe"):
+        ids.append(str((await http.post("/api/join", json={"name": name})).json()["player_id"]))
+    for pid in ids:
+        await http.post("/api/intake", json={"player_id": pid, "message": "hi"})
+        await http.post("/api/contract/lock", json={"player_id": pid})
+    for pid in ids:
+        await http.post("/api/accept", json={"player_id": pid})
+    return ids
+
+
+async def test_a_photo_check_in_is_read_advisorily_and_scored_by_the_rubric(
+    http: httpx.AsyncClient,
+) -> None:
+    """A multipart photo: the advisory beside it, 15 points, the leaderboard moved."""
+    alice, ben, _ = await _active(http)
+    answer = await http.post(
+        "/api/checkin",
+        data={"player_id": alice, "milestone": "0", "value": "9"},
+        files={"file": ("pushups.jpg", b"\xff\xd8 photo", "image/jpeg")},
+    )
+    assert answer.status_code == 200
+    event = answer.json()["event"]
+    assert event["state"] == "VERIFIED"
+    assert event["delta"] == 15
+    assert event["advisory"]["model"] == "openai:fake"
+    assert event["advisory"]["agrees"] is True
+    photo = await http.get(f"/api/evidence/{event['evidence_id']}")
+    assert photo.content == b"\xff\xd8 photo"
+    log = await http.post(
+        "/api/checkin", data={"player_id": ben, "milestone": "0", "value": "1", "note": "5 km"}
+    )
+    assert log.json()["event"]["evidence_kind"] == "log"
+    state = log.json()["state"]
+    assert [row["name"] for row in state["leaderboard"]] == ["Alice", "Ben", "Chloe"]
+    missing = await http.post(
+        "/api/checkin", data={"player_id": alice, "milestone": "1", "value": "11"}
+    )
+    assert missing.json()["error"]["code"] == "MILESTONE_NOT_OPEN"
